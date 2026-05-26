@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PRODUCTS, CATEGORIES, INCOMING_STATUSES, QUALITY_STATUSES } from './data.js';
 import { Icon, Crest, StatusBlock, ProductCombobox, formatDate, relTime, reportIsWithin24h } from './components.jsx';
 
@@ -43,6 +43,14 @@ export function FieldShell({ user, org, history, onSubmit, onLogout, mode, viewp
   const [toast, setToast] = useState(null);
   const showToast = (text, kind='ok') => { setToast({ text, kind }); setTimeout(() => setToast(null), 2600); };
 
+  // True when the browser is actually a narrow/mobile viewport
+  const [narrow, setNarrow] = useState(() => window.innerWidth < 560);
+  useEffect(() => {
+    const fn = () => setNarrow(window.innerWidth < 560);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+
   const lastReport = history[0];
   const dailyOk = lastReport && reportIsWithin24h(lastReport.reported_at);
   const isPc = viewport === 'fullscreen';
@@ -65,6 +73,19 @@ export function FieldShell({ user, org, history, onSubmit, onLogout, mode, viewp
     { id:'profile', label:'פרופיל',   icon:'user'    },
   ];
 
+  const bottomNav = (
+    <div style={{flexShrink:0, display:'grid', gridTemplateColumns:'1fr 1fr 1fr', borderTop:'1px solid var(--line)', background:'var(--surface)'}}>
+      {navItems.map(t => (
+        <button key={t.id} onClick={() => setTab(t.id)}
+          style={{appearance:'none', border:0, background:'transparent', padding:'10px 0 14px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:4, color: tab === t.id ? 'var(--ink)' : 'var(--ink-3)', fontFamily:'var(--font-ui)', fontSize:11, fontWeight:500, position:'relative'}}>
+          <Icon name={t.icon} size={20} stroke={tab === t.id ? 2 : 1.6}/>{t.label}
+          {t.badge && <span style={{position:'absolute', top:8, insetInlineStart:'calc(50% + 8px)', width:7, height:7, borderRadius:'50%', background:'var(--bad)', boxShadow:'0 0 0 2px var(--surface)'}}/>}
+        </button>
+      ))}
+    </div>
+  );
+
+  // ── PC / fullscreen layout ───────────────────────────────────────────────
   if (isPc) {
     return (
       <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)', position:'relative'}}>
@@ -104,6 +125,41 @@ export function FieldShell({ user, org, history, onSubmit, onLogout, mode, viewp
     );
   }
 
+  // ── Phone — native full-screen on real mobile, framed on desktop ─────────
+  const phoneInner = (
+    <>
+      <div className="sec-h" style={{flexShrink:0, position:'sticky', top:0, zIndex:5}}>
+        <div><h2>{orgName}</h2><div className="sub">{user.title}</div></div>
+        <div style={{display:'flex', gap:6, alignItems:'center'}}>
+          <span className="chip" style={{fontSize:11}}>
+            <span className="dot" style={{background: mode === 'emergency' ? 'var(--bad)' : 'var(--ok)'}}/>
+            {mode === 'emergency' ? 'חירום' : 'שגרה'}
+          </span>
+          <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={14}/></button>
+        </div>
+      </div>
+      <div style={{flex:'1 1 auto', overflowY:'auto', position:'relative'}}>
+        {tabContent}
+      </div>
+      {bottomNav}
+      {toast && (
+        <div className="anim-in" style={{position:'fixed', left:16, right:16, bottom:80, padding:'12px 14px', background: toast.kind === 'ok' ? 'var(--ok)' : 'var(--bad)', color:'white', borderRadius:8, font:'500 14px var(--font-ui)', display:'flex', alignItems:'center', gap:10, boxShadow:'0 12px 32px oklch(0% 0 0 / .18)', zIndex:50}}>
+          <Icon name={toast.kind === 'ok' ? 'check' : 'alert'} size={16} stroke={2.4}/>{toast.text}
+        </div>
+      )}
+    </>
+  );
+
+  // On an actual phone: fill the full screen natively
+  if (narrow) {
+    return (
+      <div style={{height:'100dvh', display:'flex', flexDirection:'column', background:'var(--surface)', overflow:'hidden'}}>
+        {phoneInner}
+      </div>
+    );
+  }
+
+  // On desktop: show the decorative phone frame
   return (
     <div className="phone-stage">
       <div className="phone">
@@ -116,32 +172,8 @@ export function FieldShell({ user, org, history, onSubmit, onLogout, mode, viewp
             </span>
           </span>
         </div>
-        <div className="phone-body" style={{display:'flex', flexDirection:'column', position:'relative'}}>
-          <div className="sec-h" style={{position:'sticky', top:0, zIndex:5}}>
-            <div><h2>{orgName}</h2><div className="sub">{user.title}</div></div>
-            <div style={{display:'flex', gap:6, alignItems:'center'}}>
-              <span className="chip" style={{fontSize:11}}>
-                <span className="dot" style={{background: mode === 'emergency' ? 'var(--bad)' : 'var(--ok)'}}/>
-                {mode === 'emergency' ? 'חירום' : 'שגרה'}
-              </span>
-              <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={14}/></button>
-            </div>
-          </div>
-          {tabContent}
-          <div style={{position:'sticky', bottom:0, marginTop:'auto', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', borderTop:'1px solid var(--line)', background:'var(--surface)'}}>
-            {navItems.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{appearance:'none', border:0, background:'transparent', padding:'10px 0 14px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:4, color: tab === t.id ? 'var(--ink)' : 'var(--ink-3)', fontFamily:'var(--font-ui)', fontSize:11, fontWeight:500, position:'relative'}}>
-                <Icon name={t.icon} size={20} stroke={tab === t.id ? 2 : 1.6}/>{t.label}
-                {t.badge && <span style={{position:'absolute', top:8, insetInlineStart:'calc(50% + 8px)', width:7, height:7, borderRadius:'50%', background:'var(--bad)', boxShadow:'0 0 0 2px var(--surface)'}}/>}
-              </button>
-            ))}
-          </div>
-          {toast && (
-            <div className="anim-in" style={{position:'absolute', left:16, right:16, bottom:84, padding:'12px 14px', background: toast.kind === 'ok' ? 'var(--ok)' : 'var(--bad)', color:'white', borderRadius:8, font:'500 14px var(--font-ui)', display:'flex', alignItems:'center', gap:10, boxShadow:'0 12px 32px oklch(0% 0 0 / .18)'}}>
-              <Icon name={toast.kind === 'ok' ? 'check' : 'alert'} size={16} stroke={2.4}/>{toast.text}
-            </div>
-          )}
+        <div className="phone-body" style={{display:'flex', flexDirection:'column'}}>
+          {phoneInner}
         </div>
       </div>
     </div>

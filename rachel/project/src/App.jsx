@@ -10,7 +10,7 @@ import { FieldShell } from './field.jsx';
 import { HQShell } from './hq.jsx';
 
 const TWEAK_DEFAULTS = {
-  fieldView: 'fullscreen',
+  fieldView: 'phone',
   national:  'emergency',
   density:   'regular',
   dark:      false,

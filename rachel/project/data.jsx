@@ -1,6 +1,11 @@
-// Seed data for the Rachel MVP prototype. All organization/product names are
-// generic stand-ins to illustrate the categories defined in the PRD; nothing
-// here is real or claims to be.
+// Supabase client + all database functions for the Rachel app.
+
+const _sb = window.supabase.createClient(
+  'https://jerkggtuyisclgsllpgf.supabase.co',
+  'sb_publishable_7SwRadLqsXKEIXu6GAZiwQ_DGROuaP6'
+);
+
+// ─── Static reference data (never changes, kept in frontend) ─────────────────
 
 const CATEGORIES = [
   { id: 1, name: 'משרד הכלכלה — מזון', short: 'כלכלה' },
@@ -25,111 +30,150 @@ const PRODUCTS = [
   { id: 403, category_id: 4, name: 'חמצן נוזלי', unit: 'ק"ל' },
 ];
 
-const ORGANIZATIONS = [
-  { id: 1, name: 'רשת שיווק צפון',    type: 'רשת שיווק',    cat_id: 1, active: true,
-    linked_products: [101, 102, 103, 104, 105] },
-  { id: 2, name: 'רשת שיווק דרום',    type: 'רשת שיווק',    cat_id: 1, active: true,
-    linked_products: [101, 102, 103, 104] },
-  { id: 3, name: 'רשת שיווק מרכז',    type: 'רשת שיווק',    cat_id: 1, active: true,
-    linked_products: [101, 102, 105] },
-  { id: 4, name: 'חברת דלק א׳',       type: 'חברת אנרגיה', cat_id: 2, active: true,
-    linked_products: [201, 202, 203] },
-  { id: 5, name: 'חברת דלק ב׳',       type: 'חברת אנרגיה', cat_id: 2, active: true,
-    linked_products: [201, 202] },
-  { id: 6, name: 'ממגורות לאומיות',   type: 'אחסון גרעינים', cat_id: 3, active: true,
-    linked_products: [301, 302] },
-  { id: 7, name: 'מרכז רפואי דרום',   type: 'מרכז רפואי',   cat_id: 4, active: true,
-    linked_products: [401, 402, 403] },
-  { id: 8, name: 'מרכז רפואי צפון',   type: 'מרכז רפואי',   cat_id: 4, active: true,
-    linked_products: [401, 402] },
-  { id: 9, name: 'מטה רח"ל',          type: 'מטה',          cat_id: null, active: true,
-    linked_products: [] },
-];
-
 const ORG_TYPES = [
   'רשת שיווק', 'חברת אנרגיה', 'אחסון גרעינים', 'מרכז רפואי',
   'חברת תרופות', 'מתקן ייצור', 'מחסן ערכי חירום', 'אחר',
 ];
 
-const USERS = [
-  {
-    id: 11, role: 'FIELD_USER', organization_id: 1,
-    full_name: 'דנה אברהמי', id_number: '039482156', phone: '050-1234567', password: '1234',
-    title: 'מנהלת לוגיסטיקה — רשת שיווק צפון',
-  },
-  {
-    id: 22, role: 'HQ_USER', organization_id: 9,
-    full_name: 'וויקי לוי', id_number: '012345678', phone: '050-7654321', password: '1234',
-    title: 'מנהלת חמ"ל — מטה רח"ל',
-  },
-];
-
-// Sample history for the field user. Newest first.
-function sampleHistory() {
-  const now = Date.now();
-  const day = 24 * 3600 * 1000;
-  return [
-    {
-      id: 9012, reported_at: now - 1 * day,
-      lines: [
-        { product_id: 101, current_stock: 10, incoming_stock: 4,  incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-        { product_id: 102, current_stock: 22, incoming_stock: 0,  incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-        { product_id: 103, current_stock: 18, incoming_stock: 6,  incoming_status: 'מעוכב בנמל', quality_status: 'תקין', notes: 'אחור 4 ימים' },
-        { product_id: 104, current_stock: 14, incoming_stock: 0,  incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-        { product_id: 105, current_stock: 9400, incoming_stock: 12000, incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-      ],
-    },
-    {
-      id: 9011, reported_at: now - 2 * day,
-      lines: [
-        { product_id: 101, current_stock: 11, incoming_stock: 4, incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-        { product_id: 102, current_stock: 24, incoming_stock: 0, incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-        { product_id: 103, current_stock: 19, incoming_stock: 6, incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-      ],
-    },
-    {
-      id: 9010, reported_at: now - 3 * day,
-      lines: [
-        { product_id: 101, current_stock: 12, incoming_stock: 0, incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-        { product_id: 102, current_stock: 26, incoming_stock: 0, incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-      ],
-    },
-    {
-      id: 9009, reported_at: now - 4 * day,
-      lines: [
-        { product_id: 101, current_stock: 14, incoming_stock: 0, incoming_status: 'תקין ובדרך', quality_status: 'בלאי', notes: 'בלאי בשק אחד' },
-      ],
-    },
-    {
-      id: 9008, reported_at: now - 6 * day,
-      lines: [
-        { product_id: 102, current_stock: 28, incoming_stock: 0, incoming_status: 'תקין ובדרך', quality_status: 'תקין', notes: '' },
-      ],
-    },
-  ];
-}
-
-// HQ monitor — last-reported timestamp per org. Some are "dead zones" (no report today).
-function sampleHqMonitor() {
-  const now = Date.now();
-  const h = 3600 * 1000;
-  return [
-    { org_id: 1, last: now - 3 * h,  user: 'דנה אברהמי' },
-    { org_id: 2, last: now - 8 * h,  user: 'מאיה בן-נון' },
-    { org_id: 3, last: now - 27 * h, user: 'יעל קצב' },           // dead zone
-    { org_id: 4, last: now - 5 * h,  user: 'נדב טל' },
-    { org_id: 5, last: now - 31 * h, user: 'אורן שמואלי' },        // dead zone
-    { org_id: 6, last: now - 12 * h, user: 'הילה כהן' },
-    { org_id: 7, last: now - 2 * h,  user: 'ד״ר אבי שריר' },
-    { org_id: 8, last: now - 26 * h, user: 'ד״ר רותי מור' },       // dead zone
-  ];
-}
-
 const INCOMING_STATUSES = ['תקין ובדרך', 'מעוכב בנמל', 'תקוע בחו"ל'];
 const QUALITY_STATUSES  = ['תקין', 'בלאי', 'פסול'];
 
+// ─── Database functions ───────────────────────────────────────────────────────
+
+async function dbFetchOrganizations() {
+  const [{ data: orgs }, { data: links }] = await Promise.all([
+    _sb.from('organizations').select('*').order('id'),
+    _sb.from('org_products').select('*'),
+  ]);
+  return (orgs || []).map(o => ({
+    ...o,
+    linked_products: (links || []).filter(l => l.org_id === o.id).map(l => l.product_id),
+  }));
+}
+
+async function dbFetchUsers() {
+  const { data } = await _sb.from('rachel_users').select('*').order('id');
+  return data || [];
+}
+
+async function dbLogin(id_number, password) {
+  const { data, error } = await _sb
+    .from('rachel_users')
+    .select('*')
+    .eq('id_number', id_number)
+    .eq('password', password)
+    .single();
+  return { user: data, error };
+}
+
+async function dbFetchHistory(organization_id) {
+  const { data: reports } = await _sb
+    .from('reports')
+    .select('id, reported_at, report_lines(*)')
+    .eq('organization_id', organization_id)
+    .order('reported_at', { ascending: false })
+    .limit(50);
+  return (reports || []).map(r => ({
+    id: r.id,
+    reported_at: new Date(r.reported_at).getTime(),
+    lines: (r.report_lines || []).map(l => ({
+      ...l,
+      current_stock: Number(l.current_stock),
+      incoming_stock: Number(l.incoming_stock),
+    })),
+  }));
+}
+
+async function dbFetchMonitor() {
+  const { data: reports } = await _sb
+    .from('reports')
+    .select('organization_id, reported_at, rachel_users(full_name)')
+    .order('reported_at', { ascending: false });
+  const seen = new Set();
+  const monitor = [];
+  for (const r of (reports || [])) {
+    if (!seen.has(r.organization_id)) {
+      seen.add(r.organization_id);
+      monitor.push({
+        org_id: r.organization_id,
+        last: new Date(r.reported_at).getTime(),
+        user: r.rachel_users?.full_name || '—',
+      });
+    }
+  }
+  return monitor;
+}
+
+async function dbInsertReport({ user_id, organization_id, lines, reported_at }) {
+  const { data: report, error } = await _sb
+    .from('reports')
+    .insert({ organization_id, user_id, reported_at: new Date(reported_at).toISOString() })
+    .select()
+    .single();
+  if (error) throw error;
+
+  const lineRows = lines.map(l => ({
+    report_id: report.id,
+    product_id: l.product?.kind === 'catalog' ? l.product.product_id : null,
+    free_text_product_name: l.product?.kind === 'free' ? l.product.name : null,
+    category_id: l.category_id,
+    current_stock: Number(l.current_stock) || 0,
+    incoming_stock: Number(l.incoming_stock) || 0,
+    incoming_status: l.incoming_status,
+    quality_status: l.quality_status,
+    expected_arrival_date: l.expected_arrival_date || null,
+    notes: l.notes || null,
+    unit: l.unit || null,
+  }));
+  await _sb.from('report_lines').insert(lineRows);
+  return report;
+}
+
+async function dbInsertOrganization({ org, user }) {
+  const { data: newOrg, error: orgErr } = await _sb
+    .from('organizations')
+    .insert({ name: org.name, type: org.type, cat_id: org.cat_id, active: true })
+    .select()
+    .single();
+  if (orgErr) throw orgErr;
+
+  if (org.linked_products?.length > 0) {
+    await _sb.from('org_products').insert(
+      org.linked_products.map(pid => ({ org_id: newOrg.id, product_id: pid }))
+    );
+  }
+
+  const { data: newUser, error: userErr } = await _sb
+    .from('rachel_users')
+    .insert({ ...user, organization_id: newOrg.id, role: 'FIELD_USER' })
+    .select()
+    .single();
+  if (userErr) throw userErr;
+
+  return {
+    org: { ...newOrg, linked_products: org.linked_products || [] },
+    user: newUser,
+  };
+}
+
+async function dbUpdateOrganization(id, patch) {
+  const { linked_products, ...orgFields } = patch;
+  if (Object.keys(orgFields).length > 0) {
+    await _sb.from('organizations').update(orgFields).eq('id', id);
+  }
+  if (linked_products !== undefined) {
+    await _sb.from('org_products').delete().eq('org_id', id);
+    if (linked_products.length > 0) {
+      await _sb.from('org_products').insert(
+        linked_products.map(pid => ({ org_id: id, product_id: pid }))
+      );
+    }
+  }
+}
+
 Object.assign(window, {
-  CATEGORIES, PRODUCTS, ORGANIZATIONS, USERS, ORG_TYPES,
-  INCOMING_STATUSES, QUALITY_STATUSES,
-  sampleHistory, sampleHqMonitor,
+  CATEGORIES, PRODUCTS, ORG_TYPES, INCOMING_STATUSES, QUALITY_STATUSES,
+  dbFetchOrganizations, dbFetchUsers, dbLogin,
+  dbFetchHistory, dbFetchMonitor,
+  dbInsertReport, dbInsertOrganization, dbUpdateOrganization,
 });

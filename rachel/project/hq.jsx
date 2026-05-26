@@ -2,9 +2,8 @@
 
 const { useState: useStateH, useMemo: useMemoH } = React;
 
-function HQShell({ user, onLogout, mode, onSetMode, orgs, users, onAddOrganization, onUpdateOrganization }) {
+function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor, onAddOrganization, onUpdateOrganization }) {
   const [tab, setTab] = useStateH('monitor');
-  const monitor = useMemoH(() => sampleHqMonitor(), []);
   const [exportLog, setExportLog] = useStateH([
     { id: 1, user_id: user.id, type: 'אקסל ארצי מלא',        at: Date.now() - 6 * 3600 * 1000 },
     { id: 2, user_id: user.id, type: 'אקסל — משרד האנרגיה', at: Date.now() - 28 * 3600 * 1000 },

@@ -13,10 +13,22 @@ const { useState: useStateA, useEffect: useEffectA } = React;
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [session, setSession] = useStateA(null);
-  const [orgs,  setOrgs]  = useStateA(ORGANIZATIONS);
-  const [users, setUsers] = useStateA(USERS);
-  const [history, setHistory] = useStateA(() => sampleHistory());
+  const [orgs,    setOrgs]    = useStateA([]);
+  const [users,   setUsers]   = useStateA([]);
+  const [history, setHistory] = useStateA([]);
+  const [monitor, setMonitor] = useStateA([]);
   const [national, setNational] = useStateA(t.national);
+  const [loading, setLoading] = useStateA(true);
+
+  useEffectA(() => {
+    Promise.all([dbFetchOrganizations(), dbFetchUsers()])
+      .then(([orgsData, usersData]) => {
+        setOrgs(orgsData);
+        setUsers(usersData);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   useEffectA(() => setNational(t.national), [t.national]);
   useEffectA(() => {
@@ -24,40 +36,61 @@ function App() {
     document.body.classList.toggle('dark', !!t.dark);
   }, [t.density, t.dark]);
 
-  function login(user) { setSession(user); }
-  function logout() { setSession(null); }
-
-  function submitReport(payload) {
-    setHistory(prev => [{
-      id: Date.now(),
-      reported_at: payload.reported_at,
-      lines: payload.lines.map(l => ({
-        product_id: l.product?.kind === 'catalog' ? l.product.product_id : null,
-        free_text_product_name: l.product?.kind === 'free' ? l.product.name : null,
-        category_id: l.category_id,
-        current_stock: Number(l.current_stock) || 0,
-        incoming_stock: Number(l.incoming_stock) || 0,
-        incoming_status: l.incoming_status,
-        quality_status: l.quality_status,
-        expected_arrival_date: l.expected_arrival_date,
-        notes: l.notes,
-      })),
-    }, ...prev]);
+  async function login(user) {
+    const hist = await dbFetchHistory(user.organization_id);
+    setHistory(hist);
+    if (user.role === 'HQ_USER') {
+      const mon = await dbFetchMonitor();
+      setMonitor(mon);
+    }
+    setSession(user);
   }
 
-  // Add a new organization + its primary field user, atomically.
-  function addOrganization({ org, user }) {
-    const nextOrgId  = Math.max(...orgs.map(o => o.id)) + 1;
-    const nextUserId = Math.max(...users.map(u => u.id)) + 1;
-    const newOrg = { ...org, id: nextOrgId, active: true };
-    const newUser = { ...user, id: nextUserId, organization_id: nextOrgId, role: 'FIELD_USER' };
+  function logout() {
+    setSession(null);
+    setHistory([]);
+    setMonitor([]);
+  }
+
+  async function submitReport(payload) {
+    await dbInsertReport(payload);
+    const [hist, mon] = await Promise.all([
+      dbFetchHistory(payload.organization_id),
+      dbFetchMonitor(),
+    ]);
+    setHistory(hist);
+    setMonitor(mon);
+  }
+
+  async function addOrganization(payload) {
+    const { org: newOrg, user: newUser } = await dbInsertOrganization(payload);
     setOrgs(prev => [...prev, newOrg]);
     setUsers(prev => [...prev, newUser]);
     return { org: newOrg, user: newUser };
   }
 
-  function updateOrganization(id, patch) {
-    setOrgs(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o));
+  async function updateOrganization(id, patch) {
+    await dbUpdateOrganization(id, patch);
+    const orgsData = await dbFetchOrganizations();
+    setOrgs(orgsData);
+  }
+
+  if (loading) {
+    return (
+      <div style={{minHeight:'100vh', display:'grid', placeItems:'center', background:'var(--bg)'}}>
+        <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:16}}>
+          <div style={{
+            width:36, height:36,
+            border:'3px solid var(--line)',
+            borderTopColor:'var(--ink)',
+            borderRadius:'50%',
+            animation:'spin 0.7s linear infinite',
+          }}/>
+          <div style={{font:'500 14px var(--font-ui)', color:'var(--ink-2)'}}>טוען נתונים…</div>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
   }
 
   const sessionOrg = session ? orgs.find(o => o.id === session.organization_id) : null;
@@ -74,6 +107,7 @@ function App() {
                     mode={national}
                     onSetMode={(m) => { setNational(m); setTweak('national', m); }}
                     orgs={orgs} users={users}
+                    monitor={monitor}
                     onAddOrganization={addOrganization}
                     onUpdateOrganization={updateOrganization}/>;
   }
@@ -105,29 +139,34 @@ function App() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Login screen — id_number + password, with quick-pick persona cards
+// Login screen
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Login({ users, orgs, onLogin }) {
   const [id, setId] = useStateA('');
   const [pw, setPw] = useStateA('');
   const [err, setErr] = useStateA('');
+  const [busy, setBusy] = useStateA(false);
 
-  function submit(e) {
+  async function submit(e) {
     e?.preventDefault();
     setErr('');
-    const u = users.find(u => u.id_number === id && u.password === pw);
-    if (!u) return setErr('פרטי כניסה שגויים — בדוק תעודת זהות וסיסמה');
-    onLogin(u);
+    setBusy(true);
+    const { user } = await dbLogin(id, pw);
+    if (!user) {
+      setBusy(false);
+      return setErr('פרטי כניסה שגויים — בדוק תעודת זהות וסיסמה');
+    }
+    await onLogin(user);
+    setBusy(false);
   }
 
-  function quickPick(user) {
-    setId(user.id_number);
-    setPw(user.password);
-    setTimeout(() => onLogin(user), 120);
+  async function quickPick(user) {
+    setBusy(true);
+    await onLogin(user);
+    setBusy(false);
   }
 
-  // Show only the seed personas at the top; newly created users still log in via form.
   const seedUsers = users.filter(u => u.id <= 22);
 
   return (
@@ -155,11 +194,11 @@ function Login({ users, orgs, onLogin }) {
 
           <div className="hr" style={{margin:'18px 0 6px'}}/>
           <div style={{font:'600 11px var(--font-ui)', letterSpacing:'.08em', textTransform:'uppercase', color:'var(--ink-3)'}}>
-            כניסה מהירה לדמו
+            כניסה מהירה
           </div>
           <div style={{display:'flex', flexDirection:'column', gap:8}}>
             {seedUsers.map(u => (
-              <button key={u.id} className="persona" onClick={() => quickPick(u)}>
+              <button key={u.id} className="persona" onClick={() => quickPick(u)} disabled={busy}>
                 <div className="av">{u.full_name.split(' ').map(s=>s[0]).join('').slice(0,2)}</div>
                 <div style={{flex:1}}>
                   <div style={{font:'600 14px var(--font-ui)'}}>{u.full_name}</div>
@@ -173,7 +212,7 @@ function Login({ users, orgs, onLogin }) {
           </div>
           {users.length > seedUsers.length && (
             <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>
-              + {users.length - seedUsers.length} משתמשים נוספים שנוצרו בניהול הארגונים — כניסה רגילה בטופס משמאל.
+              + {users.length - seedUsers.length} משתמשים נוספים — כניסה רגילה בטופס משמאל.
             </div>
           )}
         </div>
@@ -211,12 +250,13 @@ function Login({ users, orgs, onLogin }) {
             <Icon name="alert" size={13}/> {err}
           </div>}
 
-          <button type="submit" className="btn btn--lg" style={{justifyContent:'center'}}>כניסה</button>
+          <button type="submit" className="btn btn--lg" style={{justifyContent:'center'}} disabled={busy}>
+            {busy ? 'מתחבר…' : 'כניסה'}
+          </button>
 
           <div className="hr"/>
           <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)', lineHeight:1.55}}>
-            MVP — אימות פשוט (ת״ז + סיסמה), ללא MFA. המידור נאכף בשרת לפי <span className="mono">organization_id</span> מהפעלת ההפעלה.
-            כל ניסיון העברת מזהה ארגון בקלט נחסם.
+            MVP — אימות פשוט (ת״ז + סיסמה), ללא MFA. המידור נאכף בשרת לפי <span className="mono">organization_id</span>.
           </div>
         </form>
       </div>

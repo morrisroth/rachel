@@ -1,29 +1,27 @@
 import { useState, useEffect } from 'react';
 import {
   dbFetchOrganizations, dbFetchUsers, dbLogin,
-  dbFetchHistory, dbFetchMonitor,
-  dbInsertReport, dbInsertOrganization, dbUpdateOrganization,
+  dbFetchHistory,
+  dbInsertReport,
 } from './data.js';
 import { Icon, Crest } from './components.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakButton } from './tweaks-panel.jsx';
 import { FieldShell } from './field.jsx';
-import { HQShell } from './hq.jsx';
 
 const TWEAK_DEFAULTS = {
-  fieldView: 'phone',
-  national:  'emergency',
-  density:   'regular',
-  dark:      false,
+  fieldView:  'phone',
+  national:   'emergency',
+  density:    'regular',
+  dark:       false,
   showTweaks: true,
 };
 
 export function App() {
-  const [t, setTweak]       = useTweaks(TWEAK_DEFAULTS);
-  const [session, setSession] = useState(null);
-  const [orgs,    setOrgs]    = useState([]);
-  const [users,   setUsers]   = useState([]);
-  const [history, setHistory] = useState([]);
-  const [monitor, setMonitor] = useState([]);
+  const [t, setTweak]         = useTweaks(TWEAK_DEFAULTS);
+  const [session, setSession]  = useState(null);
+  const [orgs,    setOrgs]     = useState([]);
+  const [users,   setUsers]    = useState([]);
+  const [history, setHistory]  = useState([]);
   const [national, setNational] = useState(t.national);
   const [loading, setLoading]   = useState(true);
 
@@ -46,58 +44,25 @@ export function App() {
   async function login(user) {
     const hist = await dbFetchHistory(user.organization_id);
     setHistory(hist);
-    if (user.role === 'HQ_USER') {
-      const mon = await dbFetchMonitor();
-      setMonitor(mon);
-    }
     setSession(user);
   }
 
   function logout() {
     setSession(null);
     setHistory([]);
-    setMonitor([]);
   }
 
   async function submitReport(payload) {
     await dbInsertReport(payload);
-    const [hist, mon] = await Promise.all([
-      dbFetchHistory(payload.organization_id),
-      dbFetchMonitor(),
-    ]);
+    const hist = await dbFetchHistory(payload.organization_id);
     setHistory(hist);
-    setMonitor(mon);
-  }
-
-  async function addOrganization(payload) {
-    const { org: newOrg, user: newUser } = await dbInsertOrganization(payload);
-    setOrgs(prev => [...prev, newOrg]);
-    setUsers(prev => [...prev, newUser]);
-    return { org: newOrg, user: newUser };
-  }
-
-  async function refreshMonitor() {
-    const mon = await dbFetchMonitor();
-    setMonitor(mon);
-  }
-
-  async function updateOrganization(id, patch) {
-    await dbUpdateOrganization(id, patch);
-    const orgsData = await dbFetchOrganizations();
-    setOrgs(orgsData);
   }
 
   if (loading) {
     return (
       <div style={{minHeight:'100vh', display:'grid', placeItems:'center', background:'var(--bg)'}}>
         <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:16}}>
-          <div style={{
-            width:36, height:36,
-            border:'3px solid var(--line)',
-            borderTopColor:'var(--ink)',
-            borderRadius:'50%',
-            animation:'spin 0.7s linear infinite',
-          }}/>
+          <div style={{width:36, height:36, border:'3px solid var(--line)', borderTopColor:'var(--ink)', borderRadius:'50%', animation:'spin 0.7s linear infinite'}}/>
           <div style={{font:'500 14px var(--font-ui)', color:'var(--ink-2)'}}>טוען נתונים…</div>
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -107,27 +72,15 @@ export function App() {
 
   const sessionOrg = session ? orgs.find(o => o.id === session.organization_id) : null;
 
-  let main;
   if (!session) {
-    main = <Login users={users} orgs={orgs} onLogin={login}/>;
-  } else if (session.role === 'FIELD_USER') {
-    main = <FieldShell user={session} org={sessionOrg} history={history}
-                       onSubmit={submitReport} onLogout={logout}
-                       mode={national} viewport={t.fieldView}/>;
-  } else {
-    main = <HQShell user={session} onLogout={logout}
-                    mode={national}
-                    onSetMode={(m) => { setNational(m); setTweak('national', m); }}
-                    orgs={orgs} users={users}
-                    monitor={monitor}
-                    onRefreshMonitor={refreshMonitor}
-                    onAddOrganization={addOrganization}
-                    onUpdateOrganization={updateOrganization}/>;
+    return <FieldLogin users={users} onLogin={login}/>;
   }
 
   return (
     <>
-      {main}
+      <FieldShell user={session} org={sessionOrg} history={history}
+                  onSubmit={submitReport} onLogout={logout}
+                  mode={national} viewport={t.fieldView}/>
       <TweaksPanel>
         <TweakSection label="חשבון" />
         <TweakRadio label="מצב לאומי" value={national}
@@ -143,18 +96,18 @@ export function App() {
                     onChange={(v) => setTweak('density', v)} />
         <TweakToggle label="מצב כהה" value={t.dark} onChange={(v) => setTweak('dark', v)} />
         <TweakSection label="דמו" />
-        {session && (
-          <TweakButton onClick={logout}>יציאה ומעבר בין משתמשים</TweakButton>
-        )}
+        <TweakButton onClick={logout}>יציאה ומעבר בין משתמשים</TweakButton>
       </TweaksPanel>
     </>
   );
 }
 
-function Login({ users, orgs, onLogin }) {
-  const [id, setId]   = useState('');
-  const [pw, setPw]   = useState('');
-  const [err, setErr] = useState('');
+// ── Field user login page ────────────────────────────────────────────────────
+
+function FieldLogin({ users, onLogin }) {
+  const [id, setId]     = useState('');
+  const [pw, setPw]     = useState('');
+  const [err, setErr]   = useState('');
   const [busy, setBusy] = useState(false);
 
   async function submit(e) {
@@ -162,112 +115,111 @@ function Login({ users, orgs, onLogin }) {
     setErr('');
     setBusy(true);
     const { user } = await dbLogin(id, pw);
-    if (!user) {
-      setBusy(false);
-      return setErr('פרטי כניסה שגויים — בדוק תעודת זהות וסיסמה');
-    }
+    if (!user) { setBusy(false); return setErr('פרטי כניסה שגויים — בדוק ת״ז וסיסמה'); }
+    if (user.role !== 'FIELD_USER') { setBusy(false); return setErr('דף זה מיועד לנציגי שטח בלבד'); }
     await onLogin(user);
     setBusy(false);
   }
 
-  async function quickPick(user) {
-    setBusy(true);
-    await onLogin(user);
-    setBusy(false);
-  }
+  async function quickPick(u) { setBusy(true); await onLogin(u); setBusy(false); }
 
-  const seedUsers = users.filter(u => u.id <= 22);
+  const fieldUsers = users.filter(u => u.role === 'FIELD_USER' && u.id <= 22);
 
   return (
-    <div className="login-stage">
-      <div style={{width:'100%', maxWidth:880, display:'grid', gridTemplateColumns:'1.05fr 1fr', gap:32, alignItems:'center'}}>
-        {/* Brand side */}
-        <div style={{display:'flex', flexDirection:'column', gap:18}}>
-          <Crest subtitle="רשת לניהול חירום · MVP"/>
-          <h1 style={{margin:0, font:'700 36px var(--font-ui)', letterSpacing:'-.01em', lineHeight:1.1}}>
-            מערכת רחל
-            <div style={{font:'400 18px var(--font-ui)', color:'var(--ink-2)', marginTop:6}}>
-              דיווח מלאי ארצי · רשת אזרחית
-            </div>
-          </h1>
-          <p style={{margin:0, font:'400 14px var(--font-ui)', color:'var(--ink-2)', maxWidth:420, lineHeight:1.55}}>
-            צינור קלט רזה ומאובטח להזרמת נתוני מלאי ורכש מחברות הקצה ורשתות השיווק
-            אל בריכת המידע המרכזית של מטה רח״ל.
-          </p>
+    <div style={{
+      minHeight: '100dvh',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: '32px 20px',
+      background: `
+        radial-gradient(ellipse 120% 50% at 50% -5%, oklch(92% 0.035 250 / .25), transparent 55%),
+        radial-gradient(ellipse 80% 40% at 10% 100%, oklch(94% 0.025 150 / .15), transparent 55%),
+        oklch(98% 0.008 80)`,
+    }}>
+      {/* Brand */}
+      <div style={{marginBottom:28, display:'flex', flexDirection:'column', alignItems:'center', gap:8}}>
+        <Crest subtitle="מערכת דיווח שטח · רחל"/>
+      </div>
 
-          <div style={{display:'flex', gap:8, marginTop:6}}>
-            <span className="chip"><Icon name="shield" size={12}/> מידור הרמטי</span>
-            <span className="chip"><Icon name="clock"  size={12}/> דיווח &lt; 60 שניות</span>
-            <span className="chip"><Icon name="doc"    size={12}/> ייצוא קשיח ל-Excel</span>
-          </div>
+      {/* Card */}
+      <div style={{width:'100%', maxWidth:400, borderRadius:22, overflow:'hidden', boxShadow:'0 4px 6px oklch(0% 0 0 / .04), 0 20px 60px oklch(0% 0 0 / .10)', border:'1px solid var(--line)'}}>
 
-          <div className="hr" style={{margin:'18px 0 6px'}}/>
-          <div style={{font:'600 11px var(--font-ui)', letterSpacing:'.08em', textTransform:'uppercase', color:'var(--ink-3)'}}>
-            כניסה מהירה
+        {/* Top strip */}
+        <div style={{background:'linear-gradient(135deg, oklch(52% 0.16 250), oklch(44% 0.14 260))', padding:'24px 26px', display:'flex', alignItems:'center', gap:16}}>
+          <div style={{width:50, height:50, borderRadius:14, background:'oklch(100% 0 0 / .18)', display:'grid', placeItems:'center', flexShrink:0}}>
+            <Icon name="home" size={23} stroke={1.8} style={{color:'white'}}/>
           </div>
-          <div style={{display:'flex', flexDirection:'column', gap:8}}>
-            {seedUsers.map(u => (
-              <button key={u.id} className="persona" onClick={() => quickPick(u)} disabled={busy}>
-                <div className="av">{u.full_name.split(' ').map(s=>s[0]).join('').slice(0,2)}</div>
-                <div style={{flex:1}}>
-                  <div style={{font:'600 14px var(--font-ui)'}}>{u.full_name}</div>
-                  <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>{u.title}</div>
-                </div>
-                <span className="chip chip--accent" style={{fontSize:11}}>
-                  {u.role === 'FIELD_USER' ? 'נציג שטח' : 'מטה רח״ל'}
-                </span>
-              </button>
-            ))}
-          </div>
-          {users.length > seedUsers.length && (
-            <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>
-              + {users.length - seedUsers.length} משתמשים נוספים — כניסה רגילה בטופס משמאל.
+          <div>
+            <div style={{font:'700 20px var(--font-ui)', color:'white'}}>נציג שטח</div>
+            <div style={{font:'400 13px var(--font-ui)', color:'oklch(100% 0 0 / .72)', marginTop:2}}>
+              כניסה לדיווח מלאי יומי
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Login form */}
-        <form className="card" onSubmit={submit} style={{padding:28, display:'flex', flexDirection:'column', gap:16}}>
-          <div>
-            <h2 style={{margin:0, font:'600 20px var(--font-ui)'}}>כניסה למערכת</h2>
-            <div style={{font:'400 13px var(--font-ui)', color:'var(--ink-3)', marginTop:4}}>הזן תעודת זהות וסיסמה</div>
-          </div>
-
-          <div>
-            <label className="label">מספר תעודת זהות</label>
-            <div style={{position:'relative'}}>
-              <Icon name="user" size={15} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
-              <input className="input num-input" inputMode="numeric" maxLength={9}
-                     value={id} onChange={e => setId(e.target.value.replace(/\D/g,''))}
-                     placeholder="9 ספרות"
-                     style={{paddingInlineStart:38}}/>
+        {/* Form body */}
+        <div style={{background:'var(--surface)'}}>
+          <form onSubmit={submit} style={{padding:'24px 26px', display:'flex', flexDirection:'column', gap:14}}>
+            <div>
+              <label className="label">מספר תעודת זהות</label>
+              <div style={{position:'relative'}}>
+                <Icon name="user" size={15} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
+                <input className="input num-input" inputMode="numeric" maxLength={9}
+                  value={id} onChange={e => setId(e.target.value.replace(/\D/g,''))}
+                  placeholder="9 ספרות" style={{paddingInlineStart:38}}/>
+              </div>
             </div>
-          </div>
-
-          <div>
-            <label className="label">סיסמה</label>
-            <div style={{position:'relative'}}>
-              <Icon name="lock" size={15} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
-              <input className="input" type="password"
-                     value={pw} onChange={e => setPw(e.target.value)}
-                     placeholder="••••"
-                     style={{paddingInlineStart:38}}/>
+            <div>
+              <label className="label">סיסמה</label>
+              <div style={{position:'relative'}}>
+                <Icon name="lock" size={15} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
+                <input className="input" type="password"
+                  value={pw} onChange={e => setPw(e.target.value)}
+                  placeholder="••••" style={{paddingInlineStart:38}}/>
+              </div>
             </div>
-          </div>
+            {err && (
+              <div style={{font:'500 13px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:7, padding:'10px 13px', background:'var(--bad-bg)', border:'1px solid var(--bad-line)', borderRadius:9}}>
+                <Icon name="alert" size={13}/> {err}
+              </div>
+            )}
+            <button type="submit" disabled={busy}
+              style={{appearance:'none', border:0, cursor:'pointer', background:'linear-gradient(135deg, oklch(52% 0.16 250), oklch(44% 0.14 260))', color:'white', padding:'13px', borderRadius:11, font:'600 15px var(--font-ui)', marginTop:2, transition:'opacity .1s', opacity: busy ? .6 : 1}}>
+              {busy ? 'מתחבר…' : 'כניסה לדיווח'}
+            </button>
+          </form>
 
-          {err && <div style={{font:'500 13px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:6}}>
-            <Icon name="alert" size={13}/> {err}
-          </div>}
+          {/* Quick pick */}
+          {fieldUsers.length > 0 && (
+            <>
+              <div style={{margin:'0 26px', height:1, background:'var(--line)'}}/>
+              <div style={{padding:'16px 26px 24px', display:'flex', flexDirection:'column', gap:9}}>
+                <div style={{font:'600 10px var(--font-ui)', letterSpacing:'.09em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:2}}>
+                  כניסה מהירה — דמו
+                </div>
+                {fieldUsers.map(u => (
+                  <button key={u.id} onClick={() => quickPick(u)} disabled={busy}
+                    style={{appearance:'none', background:'var(--bg)', border:'1px solid var(--line)', borderRadius:11, padding:'11px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:12, textAlign:'right', width:'100%', font:'inherit', transition:'all .12s'}}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.background='var(--accent-bg)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor='var(--line)'; e.currentTarget.style.background='var(--bg)'; }}>
+                    <div style={{width:36, height:36, borderRadius:9, background:'var(--bg-2)', border:'1px solid var(--line)', display:'grid', placeItems:'center', font:'700 13px var(--font-mono)', color:'var(--ink-2)', flexShrink:0}}>
+                      {u.full_name.split(' ').map(s=>s[0]).join('').slice(0,2)}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{font:'600 14px var(--font-ui)', color:'var(--ink)'}}>{u.full_name}</div>
+                      <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{u.title}</div>
+                    </div>
+                    <Icon name="arrow-l" size={14} style={{color:'var(--ink-3)', flexShrink:0}}/>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
 
-          <button type="submit" className="btn btn--lg" style={{justifyContent:'center'}} disabled={busy}>
-            {busy ? 'מתחבר…' : 'כניסה'}
-          </button>
-
-          <div className="hr"/>
-          <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)', lineHeight:1.55}}>
-            MVP — אימות פשוט (ת״ז + סיסמה), ללא MFA. המידור נאכף בשרת לפי <span className="mono">organization_id</span>.
-          </div>
-        </form>
+      <div style={{marginTop:22, font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>
+        אנשי מטה?{' '}
+        <a href="/hq.html" style={{color:'var(--accent)', textDecoration:'none', fontWeight:500}}>כניסה לחמ״ל ←</a>
       </div>
     </div>
   );

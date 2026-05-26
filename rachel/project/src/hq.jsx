@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { CATEGORIES } from './data.js';
+import { useState, useEffect, useRef } from 'react';
+import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines } from './data.js';
 import { Icon, Crest, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
 import { OrgsView } from './orgs.jsx';
 
-export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor, onAddOrganization, onUpdateOrganization }) {
+export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor, onRefreshMonitor, onAddOrganization, onUpdateOrganization }) {
   const [tab, setTab] = useState('monitor');
   const [exportLog, setExportLog] = useState([
     { id: 1, user_id: user.id, type: 'אקסל ארצי מלא',        at: Date.now() - 6 * 3600 * 1000 },
@@ -17,7 +17,7 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
   return (
     <div className="hq-shell" style={{minHeight:'100vh'}}>
       <main className="hq-main" style={{maxWidth:1280}}>
-        {tab === 'monitor' && <MonitorView monitor={monitor} mode={mode} orgs={orgs}/>}
+        {tab === 'monitor' && <MonitorView monitor={monitor} mode={mode} orgs={orgs} onRefresh={onRefreshMonitor}/>}
         {tab === 'orgs'    && <OrgsView orgs={orgs} users={users} onAdd={onAddOrganization} onUpdate={onUpdateOrganization}/>}
         {tab === 'export'  && <ExportView onExport={doExport} mode={mode}/>}
         {tab === 'mode'    && <ModeView mode={mode} onSetMode={onSetMode}/>}
@@ -74,8 +74,34 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
   );
 }
 
-function MonitorView({ monitor, mode, orgs }) {
+function MonitorView({ monitor, mode, orgs, onRefresh }) {
   const threshold = mode === 'emergency' ? 24 : 7 * 24;
+
+  // Auto-refresh every 30 seconds
+  const refreshRef = useRef(onRefresh);
+  useEffect(() => { refreshRef.current = onRefresh; }, [onRefresh]);
+  useEffect(() => {
+    const id = setInterval(() => refreshRef.current?.(), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const [filter, setFilter]   = useState('all');
+  const [searchQ, setSearchQ] = useState('');
+  const [expanded, setExpanded] = useState(null);
+  const [detailCache, setDetailCache] = useState({});
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  async function toggleExpand(org_id) {
+    if (expanded === org_id) { setExpanded(null); return; }
+    setExpanded(org_id);
+    if (!detailCache[org_id]) {
+      setDetailLoading(true);
+      const result = await dbFetchLatestReportLines(org_id);
+      setDetailCache(prev => ({ ...prev, [org_id]: result || 'empty' }));
+      setDetailLoading(false);
+    }
+  }
+
   const enriched = monitor.map(m => {
     const org = orgs.find(o => o.id === m.org_id);
     const cat = CATEGORIES.find(c => c.id === org?.cat_id);
@@ -85,11 +111,8 @@ function MonitorView({ monitor, mode, orgs }) {
   }).filter(m => m.org);
 
   const reported = enriched.filter(m => !m.dead).length;
-  const total = enriched.length;
-  const dead = total - reported;
-
-  const [filter, setFilter] = useState('all');
-  const [searchQ, setSearchQ] = useState('');
+  const total    = enriched.length;
+  const dead     = total - reported;
 
   const filtered = enriched.filter(m =>
     (filter === 'all' || (filter === 'reported' ? !m.dead : m.dead)) &&
@@ -100,21 +123,23 @@ function MonitorView({ monitor, mode, orgs }) {
     <div style={{display:'flex', flexDirection:'column', gap:22}}>
       <PageHeader
         title="ניטור ארגונים"
-        sub={`תמונת מצב ארצית · ${mode === 'emergency' ? 'תדירות יומית (חירום)' : 'תדירות שבועית (שגרה)'}`}
+        sub={`תמונת מצב ארצית · ${mode === 'emergency' ? 'תדירות יומית (חירום)' : 'תדירות שבועית (שגרה)'} · מתרענן כל 30 שניות`}
         right={<PillToggle value={filter} onChange={setFilter}
           options={[{value:'all',label:`הכל · ${total}`},{value:'reported',label:`דיווחו · ${reported}`},{value:'dead',label:`שטחים מתים · ${dead}`}]}/>}
       />
       <div className="hq-kpis">
         <Kpi label="ארגונים מחויבי דיווח" value={total}/>
-        <Kpi label="דיווחו בחלון הנדרש" value={reported} accent="ok"/>
-        <Kpi label="שטחים מתים" value={dead} accent={dead > 0 ? 'bad' : 'ok'}/>
-        <Kpi label="חלון דיווח נוכחי" value={mode === 'emergency' ? '24 ש׳' : '168 ש׳'}/>
+        <Kpi label="דיווחו בחלון הנדרש"  value={reported} accent="ok"/>
+        <Kpi label="שטחים מתים"           value={dead} accent={dead > 0 ? 'bad' : 'ok'}/>
+        <Kpi label="חלון דיווח נוכחי"     value={mode === 'emergency' ? '24 ש׳' : '168 ש׳'}/>
       </div>
+
       {monitor.length === 0 && (
         <div className="card" style={{padding:'32px', textAlign:'center', color:'var(--ink-3)', font:'400 14px var(--font-ui)'}}>
           אין דיווחים עדיין — נציגי השטח לא שלחו דיווח עדיין.
         </div>
       )}
+
       {monitor.length > 0 && (
         <div className="card" style={{overflow:'hidden'}}>
           <div style={{padding:'12px 14px', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid var(--line)'}}>
@@ -125,12 +150,18 @@ function MonitorView({ monitor, mode, orgs }) {
           <table className="tbl">
             <thead>
               <tr>
-                <th style={{width:40}}>#</th><th>ארגון</th><th>סוג</th><th>משרד</th>
-                <th>איש קשר</th><th>דיווח אחרון</th><th>סטטוס</th><th style={{width:120}}></th>
+                <th style={{width:40}}>#</th>
+                <th>ארגון</th>
+                <th>סוג</th>
+                <th>משרד</th>
+                <th>איש קשר</th>
+                <th>דיווח אחרון</th>
+                <th>סטטוס</th>
+                <th style={{width:100}}></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((m, i) => (
+              {filtered.map((m, i) => [
                 <tr key={m.org_id}>
                   <td style={{color:'var(--ink-3)'}} className="num">{String(i+1).padStart(2,'0')}</td>
                   <td style={{fontWeight:500}}>{m.org.name}</td>
@@ -141,13 +172,117 @@ function MonitorView({ monitor, mode, orgs }) {
                     <span className="num" style={{color:'var(--ink)'}}>{formatDate(m.last)}</span>
                     <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{relTime(m.last)}</div>
                   </td>
-                  <td>{m.dead ? <span className="chip chip--bad"><Icon name="alert" size={11}/> שטח מת</span> : <span className="chip chip--ok"><Icon name="check" size={11}/> דיווח תקין</span>}</td>
-                  <td><button className="btn btn--ghost btn--sm" disabled={!m.dead}>שלח תזכורת</button></td>
-                </tr>
-              ))}
+                  <td>
+                    {m.dead
+                      ? <span className="chip chip--bad"><Icon name="alert" size={11}/> שטח מת</span>
+                      : <span className="chip chip--ok"><Icon name="check" size={11}/> דיווח תקין</span>}
+                  </td>
+                  <td>
+                    <button className="btn btn--ghost btn--sm"
+                      onClick={() => toggleExpand(m.org_id)}
+                      style={{gap:5}}>
+                      <Icon name={expanded === m.org_id ? 'chevron-d' : 'chevron-r'} size={13}/>
+                      {expanded === m.org_id ? 'סגור' : 'פרטים'}
+                    </button>
+                  </td>
+                </tr>,
+
+                expanded === m.org_id && (
+                  <tr key={`${m.org_id}-detail`}>
+                    <td colSpan={8} style={{padding:0, background:'var(--bg-2)', borderBottom:'2px solid var(--line-2)'}}>
+                      <ReportDetail
+                        cache={detailCache[m.org_id]}
+                        loading={detailLoading}
+                        orgName={m.org.name}
+                      />
+                    </td>
+                  </tr>
+                ),
+              ])}
             </tbody>
           </table>
         </div>
+      )}
+    </div>
+  );
+}
+
+function ReportDetail({ cache, loading, orgName }) {
+  if (loading && !cache) {
+    return (
+      <div style={{padding:'20px 24px', color:'var(--ink-3)', font:'400 13px var(--font-ui)', display:'flex', alignItems:'center', gap:10}}>
+        <div style={{width:16, height:16, border:'2px solid var(--line)', borderTopColor:'var(--ink)', borderRadius:'50%', animation:'spin 0.7s linear infinite'}}/>
+        טוען פרטי דיווח…
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+  if (!cache || cache === 'empty') {
+    return <div style={{padding:'20px 24px', color:'var(--ink-3)', font:'400 13px var(--font-ui)'}}>אין נתוני דיווח זמינים.</div>;
+  }
+
+  const { reported_at, lines } = cache;
+
+  return (
+    <div style={{padding:'14px 20px 18px'}}>
+      <div style={{font:'600 12px var(--font-ui)', color:'var(--ink-3)', letterSpacing:'.06em', textTransform:'uppercase', marginBottom:10}}>
+        דיווח אחרון: {formatDate(reported_at)} · {lines.length} שורות
+      </div>
+      {lines.length === 0 && (
+        <div style={{color:'var(--ink-3)', font:'400 13px var(--font-ui)'}}>הדיווח לא כלל שורות.</div>
+      )}
+      {lines.length > 0 && (
+        <table className="tbl" style={{fontSize:13}}>
+          <thead>
+            <tr>
+              <th>מוצר</th>
+              <th>קטגוריה</th>
+              <th>מלאי קיים</th>
+              <th>מלאי נכנס</th>
+              <th>סטטוס כניסה</th>
+              <th>איכות</th>
+              <th>הגעה צפויה</th>
+              <th>הערות</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l, i) => {
+              const prod = PRODUCTS.find(p => p.id === l.product_id);
+              const cat  = CATEGORIES.find(c => c.id === l.category_id);
+              const productName = prod?.name || l.free_text_product_name || '—';
+              const unit = l.unit || prod?.unit || '';
+              return (
+                <tr key={i}>
+                  <td style={{fontWeight:500}}>
+                    {productName}
+                    {!prod && l.free_text_product_name && (
+                      <span className="chip chip--accent" style={{fontSize:10, padding:'1px 5px', marginInlineStart:6}}>חופשי</span>
+                    )}
+                  </td>
+                  <td>{cat ? <span className="chip" style={{fontSize:11}}>{cat.short}</span> : '—'}</td>
+                  <td className="num">{l.current_stock.toLocaleString()} <span style={{color:'var(--ink-3)', fontSize:11}}>{unit}</span></td>
+                  <td className="num">{l.incoming_stock > 0 ? `${l.incoming_stock.toLocaleString()} ${unit}` : '—'}</td>
+                  <td>
+                    {l.incoming_status
+                      ? <span className={`chip ${l.incoming_status === 'תקין ובדרך' ? 'chip--ok' : l.incoming_status === 'מעוכב בנמל' ? 'chip--warn' : 'chip--bad'}`} style={{fontSize:11}}>
+                          {l.incoming_status}
+                        </span>
+                      : '—'}
+                  </td>
+                  <td>
+                    {l.quality_status
+                      ? <span className={`chip ${l.quality_status === 'תקין' ? 'chip--ok' : l.quality_status === 'בלאי' ? 'chip--warn' : 'chip--bad'}`} style={{fontSize:11}}>
+                          {l.quality_status}
+                        </span>
+                      : '—'}
+                  </td>
+                  <td style={{color:'var(--ink-2)'}}>{l.expected_arrival_date || '—'}</td>
+                  <td style={{color:'var(--ink-2)', maxWidth:200}}>{l.notes || '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       )}
     </div>
   );

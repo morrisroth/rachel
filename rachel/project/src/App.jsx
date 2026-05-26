@@ -76,6 +76,11 @@ export function App() {
     return { org: newOrg, user: newUser };
   }
 
+  async function refreshMonitor() {
+    const mon = await dbFetchMonitor();
+    setMonitor(mon);
+  }
+
   async function updateOrganization(id, patch) {
     await dbUpdateOrganization(id, patch);
     const orgsData = await dbFetchOrganizations();
@@ -115,6 +120,7 @@ export function App() {
                     onSetMode={(m) => { setNational(m); setTweak('national', m); }}
                     orgs={orgs} users={users}
                     monitor={monitor}
+                    onRefreshMonitor={refreshMonitor}
                     onAddOrganization={addOrganization}
                     onUpdateOrganization={updateOrganization}/>;
   }

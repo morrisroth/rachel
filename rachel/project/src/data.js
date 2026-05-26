@@ -147,6 +147,25 @@ export async function dbInsertOrganization({ org, user }) {
   };
 }
 
+export async function dbFetchLatestReportLines(org_id) {
+  const { data: report } = await supabase
+    .from('reports')
+    .select('id, reported_at, report_lines(*)')
+    .eq('organization_id', org_id)
+    .order('reported_at', { ascending: false })
+    .limit(1)
+    .single();
+  if (!report) return null;
+  return {
+    reported_at: new Date(report.reported_at).getTime(),
+    lines: (report.report_lines || []).map(l => ({
+      ...l,
+      current_stock: Number(l.current_stock),
+      incoming_stock: Number(l.incoming_stock),
+    })),
+  };
+}
+
 export async function dbUpdateOrganization(id, patch) {
   const { linked_products, ...orgFields } = patch;
   if (Object.keys(orgFields).length > 0) {

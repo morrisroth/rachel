@@ -19,7 +19,7 @@ function emptyLine() {
 
 function lineFromLinkedProduct(product_id) {
   const p = PRODUCTS.find(pp => pp.id === product_id);
-  return { ...emptyLine(), product: { kind: 'catalog', product_id }, category_id: p?.category_id || null, unit: p?.unit || '' };
+  return { ...emptyLine(), product: { kind: 'catalog', product_id }, category_id: p?.category_id || null, unit: p?.unit || '', builtin: true };
 }
 
 function lineFromHistory(hist, products) {
@@ -195,7 +195,7 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
 
   const updateLine = (key, patch) => setLines(prev => prev.map(l => l.key === key ? { ...l, ...patch } : l));
   const removeLine = (key) => setLines(prev => prev.length === 1 ? prev : prev.filter(l => l.key !== key));
-  const addLine = () => setLines(prev => [...prev, emptyLine()]);
+  const addFreeLine = () => setLines(prev => [...prev, { ...emptyLine(), product: { kind: 'free', name: '' } }]);
 
   function loadYesterday() {
     if (!lastReport) return;
@@ -247,7 +247,7 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
             <Icon name="spark" size={15}/> אפס לקטלוג הארגון
           </button>
         )}
-        <button className="btn btn--ghost" onClick={addLine} style={{flex:'0 0 auto'}}>
+        <button className="btn btn--ghost" onClick={addFreeLine} style={{flex:'0 0 auto'}}>
           <Icon name="plus" size={15}/> הוסף מוצר חופשי
         </button>
       </div>
@@ -265,14 +265,28 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
         </div>
       </div>
       <div style={{display:'grid', gap:10, gridTemplateColumns: isPc ? 'repeat(auto-fill, minmax(480px, 1fr))' : '1fr'}}>
-        {lines.map((l, idx) => (
-          <LineCard key={l.key} line={l} index={idx} errors={errors} active={activeKey === l.key}
-            onFocus={() => setActiveKey(l.key)}
-            onChange={(patch) => updateLine(l.key, patch)}
-            onPickCatalog={(pid) => setProductCatalog(l.key, pid)}
-            onPickFree={(name) => setProductFree(l.key, name)}
-            onRemove={lines.length > 1 ? () => removeLine(l.key) : null}/>
-        ))}
+        {lines.map((l, idx) => {
+          const yesterdayLine = lastReport?.lines?.find(h =>
+            l.product?.kind === 'catalog'
+              ? h.product_id === l.product?.product_id
+              : (l.product?.kind === 'free' && h.free_text_product_name === l.product?.name)
+          );
+          return (
+            <LineCard key={l.key} line={l} index={idx} errors={errors} active={activeKey === l.key}
+              onFocus={() => setActiveKey(l.key)}
+              onChange={(patch) => updateLine(l.key, patch)}
+              onPickCatalog={(pid) => setProductCatalog(l.key, pid)}
+              onPickFree={(name) => setProductFree(l.key, name)}
+              onRemove={!l.builtin && lines.length > 1 ? () => removeLine(l.key) : null}
+              onRestoreYesterday={yesterdayLine ? () => updateLine(l.key, {
+                current_stock:   String(yesterdayLine.current_stock),
+                incoming_stock:  String(yesterdayLine.incoming_stock),
+                incoming_status: yesterdayLine.incoming_status,
+                quality_status:  yesterdayLine.quality_status,
+                notes:           yesterdayLine.notes || '',
+              }) : null}/>
+          );
+        })}
       </div>
       <div style={{position: isPc ? 'sticky' : 'static', bottom: isPc ? 16 : 'auto', display:'flex', flexDirection: isPc ? 'row' : 'column', gap:10, alignItems: isPc ? 'center' : 'stretch', background: isPc ? 'var(--bg)' : 'transparent', padding: isPc ? '12px 0' : 0, zIndex:4}}>
         <button className="btn btn--accent btn--lg" onClick={submit} disabled={submitting} style={{justifyContent:'center', flex: isPc ? '0 0 auto' : 1, minWidth: isPc ? 220 : 0}}>
@@ -286,7 +300,7 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
   );
 }
 
-function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalog, onPickFree, onRemove }) {
+function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalog, onPickFree, onRemove, onRestoreYesterday }) {
   const isFree = line.product?.kind === 'free';
   const unit = line.unit;
   return (
@@ -296,12 +310,24 @@ function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalo
           <span className="mono" style={{color:'var(--ink-3)', fontSize:11, padding:'2px 7px', background:'var(--bg-2)', borderRadius:4, whiteSpace:'nowrap'}}>#{String(index+1).padStart(2,'0')}</span>
           <span style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)', whiteSpace:'nowrap'}}>שורת מוצר</span>
         </div>
-        {onRemove && <button className="btn btn--ghost btn--sm" onClick={onRemove} style={{padding:'6px 8px'}}><Icon name="trash" size={13}/></button>}
+        <div style={{display:'flex', gap:4}}>
+          {onRestoreYesterday && (
+            <button title="שחזר נתוני אמש לשורה זו" className="btn btn--ghost btn--sm" onClick={onRestoreYesterday} style={{padding:'6px 8px', fontSize:11, gap:4}}>
+              <Icon name="copy" size={13}/> אמש
+            </button>
+          )}
+          {onRemove && <button className="btn btn--ghost btn--sm" onClick={onRemove} style={{padding:'6px 8px'}}><Icon name="trash" size={13}/></button>}
+        </div>
       </div>
       <div>
         <label className="label">מוצר</label>
-        <ProductCombobox value={line.product} products={PRODUCTS} categories={CATEGORIES}
-          onChange={(v) => onPickCatalog(v.product_id)} onFreeText={(name) => onPickFree(name)}/>
+        {isFree && !line.product.name ? (
+          <input className="input" autoFocus placeholder="הקלד שם מוצר חופשי…" maxLength={80}
+            onChange={e => onChange({ product: { kind: 'free', name: e.target.value } })}/>
+        ) : (
+          <ProductCombobox value={line.product} products={PRODUCTS} categories={CATEGORIES}
+            onChange={(v) => onPickCatalog(v.product_id)} onFreeText={(name) => onPickFree(name)}/>
+        )}
         {errors[line.key + ':product'] && <ErrorLabel text={errors[line.key + ':product']}/>}
       </div>
       {isFree && (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines } from './data.js';
+import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport } from './data.js';
 import { Icon, Crest, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
 import { OrgsView } from './orgs.jsx';
 
@@ -19,7 +19,7 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
       <main className="hq-main" style={{maxWidth:1280}}>
         {tab === 'monitor' && <MonitorView monitor={monitor} mode={mode} orgs={orgs} onRefresh={onRefreshMonitor}/>}
         {tab === 'orgs'    && <OrgsView orgs={orgs} users={users} onAdd={onAddOrganization} onUpdate={onUpdateOrganization}/>}
-        {tab === 'export'  && <ExportView onExport={doExport} mode={mode}/>}
+        {tab === 'export'  && <ExportView onExport={doExport} mode={mode} orgs={orgs}/>}
         {tab === 'mode'    && <ModeView mode={mode} onSetMode={onSetMode}/>}
         {tab === 'audit'   && <AuditView log={exportLog} users={users}/>}
       </main>
@@ -288,55 +288,150 @@ function ReportDetail({ cache, loading, orgName }) {
   );
 }
 
-function ExportView({ onExport, mode }) {
-  const [busy, setBusy] = useState(false);
+function ExportView({ onExport, mode, orgs }) {
+  const [busy, setBusy]         = useState(false);
   const [lastExport, setLastExport] = useState(null);
+  const [exportErr, setExportErr]   = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo,   setDateTo]   = useState('');
 
-  function run(type) {
+  async function run(label, catId = null) {
+    setExportErr('');
     setBusy(true);
-    setTimeout(() => { onExport(type); setLastExport({ type, at: Date.now() }); setBusy(false); }, 900);
+    try {
+      const fromMs = dateFrom ? new Date(dateFrom).getTime() : null;
+      const toMs   = dateTo   ? new Date(dateTo).getTime()   : null;
+      const reports = await dbFetchReportsForExport(fromMs, toMs);
+
+      const rows = [];
+      for (const rep of reports) {
+        const org = orgs.find(o => o.id === rep.organization_id);
+        if (!org) continue;
+        for (const line of rep.lines) {
+          const prod = PRODUCTS.find(p => p.id === line.product_id);
+          const lineCatId = line.category_id || prod?.category_id;
+          if (catId && lineCatId !== catId) continue;
+          const cat  = CATEGORIES.find(c => c.id === lineCatId);
+          rows.push({
+            'ארגון':          org.name,
+            'סוג ארגון':      org.type || '—',
+            'משרד':           cat?.name || '—',
+            'מוצר':           prod?.name || line.free_text_product_name || '—',
+            'יחידה':          line.unit || prod?.unit || '—',
+            'מלאי נוכחי':     line.current_stock,
+            'מלאי בדרך':      line.incoming_stock,
+            'סטטוס אספקה':    line.incoming_status  || '—',
+            'סטטוס איכות':    line.quality_status   || '—',
+            'תאריך הגעה צפוי': line.expected_arrival_date || '—',
+            'הערות':           line.notes || '',
+            'תאריך דיווח':    new Date(rep.reported_at).toLocaleDateString('he-IL'),
+          });
+        }
+      }
+
+      if (rows.length === 0) {
+        setExportErr('לא נמצאו נתונים לייצוא בטווח שנבחר.');
+        setBusy(false);
+        return;
+      }
+
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));
+      const filename = `rachel-${label.replace(/[^א-תa-z0-9]/gi, '-')}-${new Date().toISOString().slice(0,10)}.xlsx`;
+      XLSX.writeFile(wb, filename);
+
+      onExport(label);
+      setLastExport({ type: label, at: Date.now() });
+    } catch(e) {
+      setExportErr('שגיאה בייצוא: ' + (e.message || e));
+    }
+    setBusy(false);
   }
+
+  const today = new Date().toISOString().slice(0,10);
 
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22}}>
       <PageHeader title="ייצוא נתונים ארצי" sub="קובץ אקסל מנורמל, מפוצל לארבע מחיצות לפי משרדי הממשלה השותפים"/>
-      <div className="card" style={{padding:24, display:'flex', alignItems:'center', justifyContent:'space-between', gap:18}}>
+
+      {/* Date range filter */}
+      <div className="card" style={{padding:18, display:'flex', alignItems:'center', gap:18, flexWrap:'wrap'}}>
+        <div style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)', whiteSpace:'nowrap'}}>
+          <Icon name="history" size={14} style={{marginInlineEnd:6}}/>
+          טווח זמן לייצוא
+        </div>
+        <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
+          <div style={{display:'flex', alignItems:'center', gap:8}}>
+            <label style={{font:'400 13px var(--font-ui)', color:'var(--ink-3)', whiteSpace:'nowrap'}}>מתאריך</label>
+            <input type="date" className="input" value={dateFrom} max={dateTo || today}
+              onChange={e => setDateFrom(e.target.value)} style={{width:160}}/>
+          </div>
+          <div style={{display:'flex', alignItems:'center', gap:8}}>
+            <label style={{font:'400 13px var(--font-ui)', color:'var(--ink-3)', whiteSpace:'nowrap'}}>עד תאריך</label>
+            <input type="date" className="input" value={dateTo} min={dateFrom} max={today}
+              onChange={e => setDateTo(e.target.value)} style={{width:160}}/>
+          </div>
+          {(dateFrom || dateTo) && (
+            <button className="btn btn--ghost btn--sm" onClick={() => { setDateFrom(''); setDateTo(''); }}>נקה</button>
+          )}
+        </div>
+        <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>
+          {(!dateFrom && !dateTo) ? 'ללא טווח — יוצא הדיווח האחרון לכל ארגון' : 'יוצאים כל הדיווחים בטווח שנבחר'}
+        </div>
+      </div>
+
+      {/* Full export */}
+      <div className="card" style={{padding:24, display:'flex', alignItems:'center', justifyContent:'space-between', gap:18, flexWrap:'wrap'}}>
         <div style={{display:'flex', flexDirection:'column', gap:6, maxWidth:560}}>
           <div style={{font:'600 17px var(--font-ui)'}}>ייצוא קובץ ארצי מלא</div>
           <div style={{font:'400 13px var(--font-ui)', color:'var(--ink-2)'}}>
-            הקובץ מכיל את הדיווח האחרון של כל ארגון, מסונן ל-{mode === 'emergency' ? '24 השעות האחרונות' : '7 הימים האחרונים'}.
+            כולל את כל הארגונים וכל המשרדים.
+            {!dateFrom && !dateTo && ` מוגדר לדיווח האחרון לכל ארגון.`}
           </div>
         </div>
-        <button className="btn btn--accent btn--lg" disabled={busy} onClick={() => run('אקסל ארצי מלא')} style={{minWidth:230, justifyContent:'center'}}>
+        <button className="btn btn--accent btn--lg" disabled={busy} onClick={() => run('ייצוא ארצי מלא')} style={{minWidth:230, justifyContent:'center'}}>
           {busy ? 'מייצא…' : <><Icon name="download" size={16}/> ייצוא אקסל ארצי</>}
         </button>
       </div>
+
       {lastExport && (
         <div className="banner banner--ok anim-in">
           <Icon name="check" size={18} stroke={2.2}/>
           <div>
-            <div style={{font:'500 14px var(--font-ui)'}}>הקובץ נוצר בהצלחה: «{lastExport.type}»</div>
+            <div style={{font:'500 14px var(--font-ui)'}}>הקובץ הורד בהצלחה: «{lastExport.type}»</div>
             <div style={{font:'400 12px var(--font-ui)', opacity:.85, marginTop:2}}>{formatDate(lastExport.at)} · נרשם ב-EXPORT_LOG</div>
           </div>
         </div>
       )}
+      {exportErr && (
+        <div className="banner banner--bad anim-in">
+          <Icon name="alert" size={18} stroke={2.2}/>
+          <div style={{font:'500 14px var(--font-ui)'}}>{exportErr}</div>
+        </div>
+      )}
+
+      {/* Per-ministry exports */}
       <div className="min-grid">
         {[
-          { num:'01', title:'משרד הכלכלה — מזון ומוצרי צריכה', cols:['PRODUCT_NAME','STRATEGIC_STOCK','OPERATIONAL_STOCK','IN_TRANSIT_STOCK'], type:'אקסל — משרד הכלכלה' },
-          { num:'02', title:'משרד האנרגיה — דלקים ופחם', cols:['FUEL_TYPE','EMERGENCY_STOCK','TOTAL_MARKET_STOCK'], type:'אקסל — משרד האנרגיה' },
-          { num:'03', title:'משרד החקלאות — גרעינים ומספוא', cols:['PRODUCT_NAME','EMERGENCY_STOCK','OPERATIONAL_STOCK'], type:'אקסל — משרד החקלאות' },
-          { num:'04', title:'משרד הבריאות — ציוד רפואי קריטי', cols:['CATEGORY_FAMILY','PRODUCT_NAME','EXISTING_STOCK'], type:'אקסל — משרד הבריאות' },
-        ].map(({ num, title, cols, type }) => (
+          { num:'01', catId:1, title:'משרד הכלכלה — מזון ומוצרי צריכה',   label:'משרד הכלכלה' },
+          { num:'02', catId:2, title:'משרד האנרגיה — דלקים ופחם',          label:'משרד האנרגיה' },
+          { num:'03', catId:3, title:'משרד החקלאות — גרעינים ומספוא',      label:'משרד החקלאות' },
+          { num:'04', catId:4, title:'משרד הבריאות — ציוד רפואי קריטי',    label:'משרד הבריאות' },
+        ].map(({ num, catId, title, label }) => (
           <div key={num} className="card" style={{padding:18, display:'flex', flexDirection:'column', gap:12}}>
             <div style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between'}}>
               <div>
                 <div className="mono" style={{font:'600 11px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.08em'}}>טבלה {num}</div>
                 <div style={{font:'600 15px var(--font-ui)', marginTop:2}}>{title}</div>
               </div>
-              <button className="btn btn--ghost btn--sm" onClick={() => run(type)} disabled={busy}><Icon name="download" size={13}/> ייצוא</button>
+              <button className="btn btn--ghost btn--sm" onClick={() => run(label, catId)} disabled={busy}>
+                <Icon name="download" size={13}/> ייצוא
+              </button>
             </div>
-            <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
-              {cols.map(c => <span key={c} className="mono" style={{font:'500 11px var(--font-mono)', padding:'3px 8px', background:'var(--bg-2)', border:'1px solid var(--line)', borderRadius:4, color:'var(--ink-2)'}}>{c}</span>)}
+            <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>
+              {PRODUCTS.filter(p => p.category_id === catId).map(p => p.name).join(' · ')}
             </div>
           </div>
         ))}

@@ -166,6 +166,36 @@ export async function dbFetchLatestReportLines(org_id) {
   };
 }
 
+export async function dbFetchReportsForExport(fromMs = null, toMs = null) {
+  let query = supabase
+    .from('reports')
+    .select('id, organization_id, reported_at, report_lines(*)')
+    .order('reported_at', { ascending: false });
+  if (fromMs) query = query.gte('reported_at', new Date(fromMs).toISOString());
+  if (toMs)   query = query.lte('reported_at', new Date(new Date(toMs).setHours(23,59,59,999)).toISOString());
+  const { data: reports } = await query;
+  if (fromMs || toMs) {
+    return (reports || []).map(r => ({
+      organization_id: r.organization_id,
+      reported_at: new Date(r.reported_at).getTime(),
+      lines: (r.report_lines || []).map(l => ({ ...l, current_stock: Number(l.current_stock), incoming_stock: Number(l.incoming_stock) })),
+    }));
+  }
+  const seen = new Set();
+  const result = [];
+  for (const r of (reports || [])) {
+    if (!seen.has(r.organization_id)) {
+      seen.add(r.organization_id);
+      result.push({
+        organization_id: r.organization_id,
+        reported_at: new Date(r.reported_at).getTime(),
+        lines: (r.report_lines || []).map(l => ({ ...l, current_stock: Number(l.current_stock), incoming_stock: Number(l.incoming_stock) })),
+      });
+    }
+  }
+  return result;
+}
+
 export async function dbUpdateOrganization(id, patch) {
   const { linked_products, ...orgFields } = patch;
   if (Object.keys(orgFields).length > 0) {

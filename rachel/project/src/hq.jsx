@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications } from './data.js';
+import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications, dbInsertReport, dbFetchAppSettings, dbSaveAppSetting } from './data.js';
 import { Icon, Crest, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
 import { OrgsView } from './orgs.jsx';
 
@@ -21,7 +21,7 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
       <main className="hq-main" style={{maxWidth:1280}}>
         {tab === 'monitor' && <MonitorView monitor={monitor} mode={mode} orgs={orgs} onRefresh={onRefreshMonitor}/>}
         {tab === 'orgs'    && <OrgsView orgs={orgs} users={users} onAdd={onAddOrganization} onUpdate={onUpdateOrganization}/>}
-        {tab === 'export'  && <ExportView onExport={doExport} mode={mode} orgs={orgs}/>}
+        {tab === 'export'  && <ExportView onExport={doExport} mode={mode} orgs={orgs} user={user}/>}
         {tab === 'mode'    && <ModeView mode={mode} onSetMode={onSetMode}/>}
         {tab === 'notify'  && <NotifyView user={user} orgs={orgs} notifications={notifications}
                                onSend={async (n) => { await dbSendNotification(n); const all = await dbFetchNotifications(); setNotifications(all); }}/>}
@@ -293,12 +293,89 @@ function ReportDetail({ cache, loading, orgName }) {
   );
 }
 
-function ExportView({ onExport, mode, orgs }) {
+function ExportView({ onExport, mode, orgs, user }) {
   const [busy, setBusy]         = useState(false);
   const [lastExport, setLastExport] = useState(null);
   const [exportErr, setExportErr]   = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo,   setDateTo]   = useState('');
+
+  // Report import state
+  const importRef    = useRef(null);
+  const [importRows,    setImportRows]    = useState(null);
+  const [importing,     setImporting]     = useState(false);
+  const [importBusy,    setImportBusy]    = useState(false);
+  const [importDone,    setImportDone]    = useState(0);
+  const [importFailed,  setImportFailed]  = useState(0);
+  const [importErr,     setImportErr]     = useState('');
+
+  async function onImportReportsFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportErr('');
+    try {
+      const XLSX = await import('xlsx');
+      const buf  = await file.arrayBuffer();
+      const wb   = XLSX.read(buf);
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (rows.length === 0) { setImportErr('הקובץ ריק או לא ניתן לקריאה.'); return; }
+      setImportRows(rows);
+      setImporting(true);
+    } catch(e) { setImportErr('שגיאה בקריאת הקובץ: ' + (e.message || e)); }
+    if (importRef.current) importRef.current.value = '';
+  }
+
+  async function doImportReports() {
+    if (!importRows) return;
+    setImportBusy(true);
+    // Group rows by org+date key → one report per group
+    const groups = new Map();
+    for (const row of importRows) {
+      const orgName = String(row['שם ארגון'] || row['org'] || '').trim();
+      const dateRaw = String(row['תאריך דיווח'] || row['date'] || '').trim();
+      const key = `${orgName}|${dateRaw}`;
+      if (!groups.has(key)) groups.set(key, { orgName, dateRaw, rows: [] });
+      groups.get(key).rows.push(row);
+    }
+    let done = 0, failed = 0;
+    for (const { orgName, dateRaw, rows } of groups.values()) {
+      const org = orgs.find(o => o.name === orgName || o.name.includes(orgName));
+      if (!org) { failed += rows.length; continue; }
+      let reportedAt;
+      try {
+        // Handle Excel serial dates and string dates
+        const parsed = isNaN(dateRaw) ? new Date(dateRaw) : new Date(Math.round((Number(dateRaw) - 25569) * 86400000));
+        reportedAt = isNaN(parsed.getTime()) ? Date.now() : parsed.getTime();
+      } catch { reportedAt = Date.now(); }
+      const lines = rows.map(row => {
+        const productName = String(row['שם מוצר'] || row['product'] || '').trim();
+        const prod = PRODUCTS.find(p => p.name === productName);
+        return {
+          product: prod
+            ? { kind: 'catalog', product_id: prod.id }
+            : { kind: 'free', name: productName },
+          category_id: prod?.category_id || (CATEGORIES.find(c => c.name.includes(String(row['משרד'] || '')))?.id) || null,
+          current_stock:  Number(String(row['מלאי נוכחי']  || row['current']  || '').replace(/[^\d.]/g,'')) || 0,
+          incoming_stock: Number(String(row['מלאי בדרך']   || row['incoming'] || '').replace(/[^\d.]/g,'')) || 0,
+          unit:                   String(row['יחידה']         || row['unit']     || '').trim() || (prod?.unit || ''),
+          incoming_status:        String(row['סטטוס אספקה']  || '').trim() || null,
+          quality_status:         String(row['סטטוס איכות']  || '').trim() || null,
+          expected_arrival_date:  String(row['תאריך הגעה']   || '').trim() || null,
+          notes:                  String(row['הערות']         || row['notes'] || '').trim() || null,
+        };
+      });
+      try {
+        await dbInsertReport({ user_id: user.id, organization_id: org.id, lines, reported_at: reportedAt });
+        done++;
+      } catch(e) { console.warn('Import report failed:', e); failed++; }
+    }
+    setImportDone(done);
+    setImportFailed(failed);
+    setImportBusy(false);
+    setImporting(false);
+    setImportRows(null);
+  }
 
   async function run(label, catId = null) {
     setExportErr('');
@@ -441,6 +518,82 @@ function ExportView({ onExport, mode, orgs }) {
           </div>
         ))}
       </div>
+
+      {/* Report import section */}
+      <div className="card" style={{padding:24, display:'flex', flexDirection:'column', gap:14}}>
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12}}>
+          <div>
+            <div style={{font:'600 16px var(--font-ui)'}}>ייבוא דיווחים מאקסל</div>
+            <div style={{font:'400 13px var(--font-ui)', color:'var(--ink-2)', marginTop:4}}>
+              עמודות: <span className="mono" style={{fontSize:12}}>שם ארגון, שם מוצר, מלאי נוכחי, מלאי בדרך, יחידה, סטטוס אספקה, סטטוס איכות, תאריך הגעה, הערות, תאריך דיווח</span>
+            </div>
+          </div>
+          <label className="btn btn--ghost" style={{cursor:'pointer'}}>
+            <Icon name="download" size={15}/> בחר קובץ אקסל לייבוא
+            <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onImportReportsFile}/>
+          </label>
+        </div>
+        {importDone > 0 && (
+          <div className="banner banner--ok anim-in">
+            <Icon name="check" size={18} stroke={2.2}/>
+            <div>
+              <div style={{font:'500 14px var(--font-ui)'}}>יובאו {importDone} דיווחים בהצלחה.</div>
+              {importFailed > 0 && <div style={{font:'400 12px var(--font-ui)', opacity:.85, marginTop:2}}>{importFailed} שורות נכשלו (ארגון לא נמצא).</div>}
+            </div>
+          </div>
+        )}
+        {importErr && (
+          <div className="banner banner--bad anim-in">
+            <Icon name="alert" size={18} stroke={2.2}/>
+            <div style={{font:'500 14px var(--font-ui)'}}>{importErr}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Report import preview drawer */}
+      {importing && importRows && (
+        <div className="drawer-scrim" onClick={() => !importBusy && setImporting(false)}>
+          <div className="drawer anim-in" role="dialog" style={{maxWidth:720}} onClick={e => e.stopPropagation()}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid var(--line)'}}>
+              <div>
+                <div style={{font:'600 11px var(--font-ui)', letterSpacing:'.08em', textTransform:'uppercase', color:'var(--ink-3)'}}>ייבוא דיווחים מאקסל</div>
+                <h2 style={{margin:'4px 0 0', font:'600 20px var(--font-ui)'}}>נמצאו {importRows.length} שורות לייבוא</h2>
+              </div>
+              <button className="btn btn--ghost btn--sm" disabled={importBusy} onClick={() => setImporting(false)}><Icon name="x" size={14}/></button>
+            </div>
+            <div className="drawer-body">
+              <div style={{font:'400 13px var(--font-ui)', color:'var(--ink-2)', marginBottom:12}}>
+                שורות מאותה ארגון + תאריך יאוגדו לדיווח אחד.
+              </div>
+              <div className="card" style={{overflow:'hidden'}}>
+                <table className="tbl" style={{fontSize:13}}>
+                  <thead><tr><th>ארגון</th><th>שם מוצר</th><th>מלאי נוכחי</th><th>מלאי בדרך</th><th>תאריך דיווח</th></tr></thead>
+                  <tbody>
+                    {importRows.slice(0, 10).map((r, i) => (
+                      <tr key={i}>
+                        <td style={{fontWeight:500}}>{r['שם ארגון'] || r['org'] || '—'}</td>
+                        <td>{r['שם מוצר'] || r['product'] || '—'}</td>
+                        <td className="num">{r['מלאי נוכחי'] || r['current'] || '—'}</td>
+                        <td className="num">{r['מלאי בדרך'] || r['incoming'] || '—'}</td>
+                        <td style={{color:'var(--ink-2)'}}>{r['תאריך דיווח'] || r['date'] || '—'}</td>
+                      </tr>
+                    ))}
+                    {importRows.length > 10 && (
+                      <tr><td colSpan={5} style={{color:'var(--ink-3)', textAlign:'center', padding:'10px 0'}}>...ו-{importRows.length - 10} שורות נוספות</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div style={{display:'flex', gap:8, justifyContent:'flex-end', padding:'14px 24px', borderTop:'1px solid var(--line)', background:'var(--surface)'}}>
+              <button className="btn btn--ghost" disabled={importBusy} onClick={() => setImporting(false)}>ביטול</button>
+              <button className="btn btn--accent" disabled={importBusy} onClick={doImportReports}>
+                {importBusy ? 'מייבא…' : `ייבא ${importRows.length} שורות`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -452,6 +605,36 @@ function NotifyView({ user, orgs, notifications, onSend }) {
   const [busy, setBusy]     = useState(false);
   const [sent, setSent]     = useState(false);
   const [err, setErr]       = useState('');
+
+  // Schedule settings
+  const [scheduleHour, setScheduleHour]   = useState(8);
+  const [scheduleDays, setScheduleDays]   = useState([]);
+  const [scheduleBusy, setScheduleBusy]   = useState(false);
+  const [scheduleSaved, setScheduleSaved] = useState(false);
+
+  useEffect(() => {
+    dbFetchAppSettings().then(s => {
+      if (s.notify_hour !== undefined) setScheduleHour(Number(s.notify_hour));
+      if (s.notify_skip_days) {
+        try { setScheduleDays(JSON.parse(s.notify_skip_days)); } catch {}
+      }
+    }).catch(() => {});
+  }, []);
+
+  function toggleDay(d) {
+    setScheduleDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+  }
+
+  async function saveSchedule() {
+    setScheduleBusy(true); setScheduleSaved(false);
+    try {
+      await dbSaveAppSetting('notify_hour', String(scheduleHour));
+      await dbSaveAppSetting('notify_skip_days', JSON.stringify(scheduleDays));
+      setScheduleSaved(true);
+      setTimeout(() => setScheduleSaved(false), 3000);
+    } catch(e) { console.warn('saveSchedule error:', e); }
+    setScheduleBusy(false);
+  }
 
   async function send() {
     if (!msg.trim()) return;
@@ -527,6 +710,42 @@ function NotifyView({ user, orgs, notifications, onSend }) {
           </div>
         </div>
       )}
+
+      {/* Schedule editor */}
+      <div style={{display:'flex', flexDirection:'column', gap:12}}>
+        <div style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)', letterSpacing:'.04em', textTransform:'uppercase'}}>תזמון שליחה אוטומטי</div>
+        <div className="card" style={{padding:20, display:'flex', flexDirection:'column', gap:16}}>
+          <div style={{font:'400 13px var(--font-ui)', color:'var(--ink-2)', display:'flex', alignItems:'flex-start', gap:10}}>
+            <Icon name="alert" size={15} style={{marginTop:2, color:'var(--warn)'}}/>
+            <span>הגדרות אלו נשמרות במערכת, אך שליחה אוטומטית מחייבת הפעלת תהליך שרת-צד (cron / scheduler). ניתן להוסיף זאת בנפרד.</span>
+          </div>
+          <div style={{display:'flex', gap:24, flexWrap:'wrap', alignItems:'flex-start'}}>
+            <div style={{display:'flex', flexDirection:'column', gap:8}}>
+              <label style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>שעת שליחה</label>
+              <select className="select" value={scheduleHour} onChange={e => setScheduleHour(Number(e.target.value))} style={{width:130}}>
+                {Array.from({length:24}, (_,h) => (
+                  <option key={h} value={h}>{String(h).padStart(2,'0')}:00</option>
+                ))}
+              </select>
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:8}}>
+              <label style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>ימי דילוג (לא תישלח התראה)</label>
+              <div style={{display:'flex', gap:6, flexWrap:'wrap', marginTop:2}}>
+                {['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'].map((d, i) => (
+                  <label key={i} style={{display:'flex', alignItems:'center', gap:5, cursor:'pointer', padding:'5px 10px', borderRadius:6, border:'1px solid var(--line)', background: scheduleDays.includes(i) ? 'var(--accent-bg)' : 'var(--bg)', font:'500 13px var(--font-ui)', userSelect:'none'}}>
+                    <input type="checkbox" checked={scheduleDays.includes(i)} onChange={() => toggleDay(i)} style={{accentColor:'var(--accent)', width:14, height:14}}/>
+                    {d}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          {scheduleSaved && <div className="banner banner--ok anim-in"><Icon name="check" size={16}/> הגדרות התזמון נשמרו.</div>}
+          <button className="btn btn--accent" style={{alignSelf:'flex-start', minWidth:180}} disabled={scheduleBusy} onClick={saveSchedule}>
+            {scheduleBusy ? 'שומר…' : <><Icon name="history" size={14}/> שמור הגדרות תזמון</>}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

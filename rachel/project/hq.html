@@ -2,7 +2,11 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#f9f7f4"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<link rel="manifest" href="/manifest.json"/>
 <title>רחל — חמ״ל מרכזי (מטה)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -366,6 +370,54 @@
     --accent-bg: oklch(30% 0.05 250);
   }
   body.dark .tbl th { background: var(--bg-2); }
+
+  /* ── Mobile / tablet responsive ─────────────────────────── */
+  @media (max-width: 900px) {
+    .hq-shell {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+    /* Sidebar becomes a top nav bar */
+    .hq-side {
+      border-inline-start: none;
+      border-bottom: 1px solid var(--line);
+      padding: 8px 12px;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .hq-side nav {
+      flex-direction: row !important;
+      flex-wrap: nowrap;
+      gap: 2px;
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow-x: auto;
+    }
+    .hq-side nav button {
+      white-space: nowrap;
+      padding: 7px 10px !important;
+      font-size: 13px !important;
+    }
+    .hq-side > .card,
+    .hq-side > .hr,
+    .hq-side > div:last-child { display: none; }
+    .hq-main { padding: 14px 14px 60px; }
+    .hq-kpis { grid-template-columns: repeat(2, 1fr); }
+    .min-grid { grid-template-columns: 1fr; }
+    .tbl th, .tbl td { padding: 8px 10px; font-size: 13px; }
+    /* Hide less critical columns on mobile */
+    .tbl th:nth-child(3), .tbl td:nth-child(3),
+    .tbl th:nth-child(4), .tbl td:nth-child(4) { display: none; }
+    .drawer { width: 100%; }
+  }
+  @media (max-width: 560px) {
+    .hq-kpis { grid-template-columns: 1fr 1fr; }
+    .hq-main { padding: 12px 10px 60px; }
+  }
 </style>
 </head>
 <body>

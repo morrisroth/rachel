@@ -97,10 +97,10 @@ export async function dbFetchMonitor() {
   return monitor;
 }
 
-export async function dbInsertReport({ user_id, organization_id, lines, reported_at }) {
+export async function dbInsertReport({ user_id, organization_id, lines, reported_at, image_url }) {
   const { data: report, error } = await supabase
     .from('reports')
-    .insert({ organization_id, user_id, reported_at: new Date(reported_at).toISOString() })
+    .insert({ organization_id, user_id, reported_at: new Date(reported_at).toISOString(), ...(image_url ? { image_url } : {}) })
     .select()
     .single();
   if (error) throw error;
@@ -168,6 +168,15 @@ export async function dbFetchLatestReportLines(org_id) {
   };
 }
 
+export async function dbUploadReportImage(file, orgId) {
+  const ext  = file.name.split('.').pop();
+  const path = `${orgId}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from('report-images').upload(path, file, { upsert: true });
+  if (error) throw error;
+  const { data } = supabase.storage.from('report-images').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 export async function dbFetchNotifications(org_id = null) {
   let query = supabase
     .from('notifications')
@@ -217,6 +226,15 @@ export async function dbFetchReportsForExport(fromMs = null, toMs = null) {
     }
   }
   return result;
+}
+
+export async function dbFetchAppSettings() {
+  const { data } = await supabase.from('app_settings').select('*');
+  return Object.fromEntries((data || []).map(r => [r.key, r.value]));
+}
+
+export async function dbSaveAppSetting(key, value) {
+  await supabase.from('app_settings').upsert({ key, value }, { onConflict: 'key' });
 }
 
 export async function dbUpdateOrganization(id, patch) {

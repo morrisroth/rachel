@@ -1,9 +1,59 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { CATEGORIES, PRODUCTS, ORG_TYPES } from './data.js';
 import { Icon, Kpi, PageHeader } from './components.jsx';
 
 export function OrgsView({ orgs, users, onAdd, onUpdate }) {
   const [drawer, setDrawer] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importRows, setImportRows] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importDone, setImportDone] = useState(0);
+  const importRef = useRef(null);
+
+  async function onImportFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const XLSX = await import('xlsx');
+    const buf = await file.arrayBuffer();
+    const wb  = XLSX.read(buf);
+    const ws  = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    setImportRows(rows);
+    setImporting(true);
+    if (importRef.current) importRef.current.value = '';
+  }
+
+  async function doImport() {
+    if (!importRows) return;
+    setImportBusy(true);
+    let done = 0;
+    for (const row of importRows) {
+      const cat = CATEGORIES.find(c => c.name.includes(String(row['משרד'] || '')) || c.short.includes(String(row['משרד'] || '')));
+      try {
+        await onAdd({
+          org: {
+            name: String(row['שם ארגון'] || row['name'] || '').trim(),
+            type: String(row['סוג'] || row['type'] || ORG_TYPES[0]),
+            cat_id: cat?.id || CATEGORIES[0].id,
+            linked_products: [],
+          },
+          user: {
+            full_name: String(row['שם איש קשר'] || row['contact'] || '').trim(),
+            id_number: String(row['תעודת זהות'] || row['id'] || '').replace(/\D/g,''),
+            phone: String(row['טלפון'] || row['phone'] || ''),
+            password: String(row['סיסמה'] || row['password'] || '1234'),
+            title: String(row['תפקיד'] || row['title'] || 'נציג שטח'),
+            active: true,
+          },
+        });
+        done++;
+      } catch(e) { console.warn('Import row failed:', e); }
+    }
+    setImportDone(done);
+    setImportBusy(false);
+    setImporting(false);
+    setImportRows(null);
+  }
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('all');
 
@@ -29,9 +79,15 @@ export function OrgsView({ orgs, users, onAdd, onUpdate }) {
         title="ניהול ארגונים"
         sub="הוספה, עריכה והשבתה של ארגונים מדווחים."
         right={
-          <button className="btn btn--accent" onClick={() => setDrawer('add')}>
-            <Icon name="plus" size={16}/> הוסף ארגון
-          </button>
+          <div style={{display:'flex', gap:8}}>
+            <label className="btn btn--ghost" style={{cursor:'pointer'}}>
+              <Icon name="download" size={15}/> ייבוא מאקסל
+              <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onImportFile}/>
+            </label>
+            <button className="btn btn--accent" onClick={() => setDrawer('add')}>
+              <Icon name="plus" size={16}/> הוסף ארגון
+            </button>
+          </div>
         }
       />
 
@@ -87,6 +143,56 @@ export function OrgsView({ orgs, users, onAdd, onUpdate }) {
           </tbody>
         </table>
       </div>
+
+      {importDone > 0 && (
+        <div className="banner banner--ok anim-in">
+          <Icon name="check" size={18} stroke={2.2}/>
+          <div style={{font:'500 14px var(--font-ui)'}}>יובאו {importDone} ארגונים בהצלחה.</div>
+        </div>
+      )}
+
+      {importing && importRows && (
+        <div className="drawer-scrim" onClick={() => !importBusy && setImporting(false)}>
+          <div className="drawer anim-in" role="dialog" style={{maxWidth:680}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid var(--line)'}}>
+              <div>
+                <div style={{font:'600 11px var(--font-ui)', letterSpacing:'.08em', textTransform:'uppercase', color:'var(--ink-3)'}}>ייבוא ארגונים מאקסל</div>
+                <h2 style={{margin:'4px 0 0', font:'600 20px var(--font-ui)'}}>נמצאו {importRows.length} שורות לייבוא</h2>
+              </div>
+              <button className="btn btn--ghost btn--sm" disabled={importBusy} onClick={() => setImporting(false)}><Icon name="x" size={14}/></button>
+            </div>
+            <div className="drawer-body">
+              <div style={{font:'400 13px var(--font-ui)', color:'var(--ink-2)', marginBottom:12}}>
+                עמודות נדרשות: <span className="mono" style={{fontSize:12}}>שם ארגון, סוג, משרד, שם איש קשר, תעודת זהות, טלפון, סיסמה, תפקיד</span>
+              </div>
+              <div className="card" style={{overflow:'hidden'}}>
+                <table className="tbl" style={{fontSize:13}}>
+                  <thead><tr><th>שם ארגון</th><th>משרד</th><th>שם איש קשר</th><th>ת״ז</th></tr></thead>
+                  <tbody>
+                    {importRows.slice(0, 10).map((r, i) => (
+                      <tr key={i}>
+                        <td style={{fontWeight:500}}>{r['שם ארגון'] || r['name'] || '—'}</td>
+                        <td>{r['משרד'] || '—'}</td>
+                        <td>{r['שם איש קשר'] || r['contact'] || '—'}</td>
+                        <td className="num">{r['תעודת זהות'] || r['id'] || '—'}</td>
+                      </tr>
+                    ))}
+                    {importRows.length > 10 && (
+                      <tr><td colSpan={4} style={{color:'var(--ink-3)', textAlign:'center'}}>...ו-{importRows.length - 10} שורות נוספות</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div style={{display:'flex', gap:8, justifyContent:'flex-end', padding:'14px 24px', borderTop:'1px solid var(--line)', background:'var(--surface)'}}>
+              <button className="btn btn--ghost" disabled={importBusy} onClick={() => setImporting(false)}>ביטול</button>
+              <button className="btn btn--accent" disabled={importBusy} onClick={doImport}>
+                {importBusy ? 'מייבא…' : `ייבוא ${importRows.length} ארגונים`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {drawer === 'add' && (
         <OrgDrawer title="הוספת ארגון חדש" onClose={() => setDrawer(null)}

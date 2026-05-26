@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { PRODUCTS, CATEGORIES, INCOMING_STATUSES, QUALITY_STATUSES, ALL_UNITS } from './data.js';
+import { useState, useEffect, useRef } from 'react';
+import { PRODUCTS, CATEGORIES, INCOMING_STATUSES, QUALITY_STATUSES, ALL_UNITS, dbUploadReportImage } from './data.js';
 import { Icon, Crest, StatusBlock, ProductCombobox, formatDate, relTime, reportIsWithin24h } from './components.jsx';
 
 function emptyLine() {
@@ -199,9 +199,21 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
     if (linked.length === 0) return [emptyLine()];
     return linked.map(pid => lineFromLinkedProduct(pid));
   });
-  const [activeKey, setActiveKey] = useState(null);
-  const [errors, setErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
+  const [activeKey, setActiveKey]     = useState(null);
+  const [errors, setErrors]           = useState({});
+  const [submitting, setSubmitting]   = useState(false);
+  const [imageFile, setImageFile]     = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  function onFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+  function removeImage() { setImageFile(null); setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }
 
   const lastReport = history[0];
   const isPc = viewport === 'fullscreen';
@@ -244,7 +256,14 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
     setSubmitting(true);
-    await onSubmit({ user_id: user.id, organization_id: user.organization_id, lines, reported_at: Date.now() });
+    let image_url = null;
+    if (imageFile) {
+      setImageUploading(true);
+      try { image_url = await dbUploadReportImage(imageFile, user.organization_id); } catch(e) { console.warn('Image upload failed:', e); }
+      setImageUploading(false);
+    }
+    await onSubmit({ user_id: user.id, organization_id: user.organization_id, lines, reported_at: Date.now(), image_url });
+    removeImage();
     setSubmitting(false);
   }
 
@@ -301,9 +320,30 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
           );
         })}
       </div>
+      {/* Image upload */}
+      <div className="card" style={{padding:14, display:'flex', flexDirection:'column', gap:10}}>
+        <div style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>תמונה מהדיווח · אופציונלי</div>
+        {imagePreview ? (
+          <div style={{display:'flex', alignItems:'center', gap:12}}>
+            <img src={imagePreview} alt="preview" style={{width:72, height:72, objectFit:'cover', borderRadius:8, border:'1px solid var(--line)'}}/>
+            <div style={{flex:1}}>
+              <div style={{font:'500 13px var(--font-ui)', color:'var(--ink)'}}>{imageFile?.name}</div>
+              <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)', marginTop:2}}>{(imageFile?.size / 1024).toFixed(0)} KB</div>
+            </div>
+            <button className="btn btn--ghost btn--sm" onClick={removeImage}><Icon name="x" size={13}/></button>
+          </div>
+        ) : (
+          <label style={{display:'flex', alignItems:'center', gap:10, padding:'12px 14px', border:'1.5px dashed var(--line-2)', borderRadius:8, cursor:'pointer', background:'var(--bg-2)'}}>
+            <Icon name="doc" size={18} style={{color:'var(--ink-3)'}}/>
+            <span style={{font:'500 13px var(--font-ui)', color:'var(--ink-2)'}}>לחץ להעלאת תמונה מהשטח (JPEG, PNG)</span>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={onFileChange}/>
+          </label>
+        )}
+      </div>
+
       <div style={{position: isPc ? 'sticky' : 'static', bottom: isPc ? 16 : 'auto', display:'flex', flexDirection: isPc ? 'row' : 'column', gap:10, alignItems: isPc ? 'center' : 'stretch', background: isPc ? 'var(--bg)' : 'transparent', padding: isPc ? '12px 0' : 0, zIndex:4}}>
-        <button className="btn btn--accent btn--lg" onClick={submit} disabled={submitting} style={{justifyContent:'center', flex: isPc ? '0 0 auto' : 1, minWidth: isPc ? 220 : 0}}>
-          {submitting ? 'שולח…' : 'שלח דיווח מלאי'}
+        <button className="btn btn--accent btn--lg" onClick={submit} disabled={submitting || imageUploading} style={{justifyContent:'center', flex: isPc ? '0 0 auto' : 1, minWidth: isPc ? 220 : 0}}>
+          {imageUploading ? 'מעלה תמונה…' : submitting ? 'שולח…' : 'שלח דיווח מלאי'}
         </button>
         <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)', textAlign:'center', flex:1}}>
           הנתונים נשמרים ישירות לבריכת המידע של מטה רח״ל · מוצפנים בזמן השליחה

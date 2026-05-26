@@ -4,7 +4,7 @@ import {
   dbFetchMonitor,
   dbInsertOrganization, dbUpdateOrganization,
 } from './data.js';
-import { Icon } from './components.jsx';
+import { Icon, Crest } from './components.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakButton } from './tweaks-panel.jsx';
 import { HQShell } from './hq.jsx';
 
@@ -109,21 +109,6 @@ export function AppHQ() {
   );
 }
 
-// ── HQ login page — dark command-center design ───────────────────────────────
-
-const D = {
-  bg:       'oklch(13% 0.010 80)',
-  bg2:      'oklch(18% 0.012 80)',
-  bg3:      'oklch(22% 0.012 80)',
-  surface:  'oklch(20% 0.012 80)',
-  line:     'oklch(28% 0.012 80)',
-  line2:    'oklch(35% 0.012 80)',
-  ink:      'oklch(95% 0.005 80)',
-  ink2:     'oklch(72% 0.008 80)',
-  ink3:     'oklch(50% 0.008 80)',
-  ink4:     'oklch(38% 0.008 80)',
-};
-
 function HQLogin({ users, onLogin }) {
   const [id, setId]     = useState('');
   const [pw, setPw]     = useState('');
@@ -147,38 +132,32 @@ function HQLogin({ users, onLogin }) {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100dvh',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '48px 28px',
       background: `
-        radial-gradient(ellipse 900px 500px at 70% -10%, oklch(30% 0.08 250 / .45), transparent 55%),
-        radial-gradient(ellipse 600px 400px at 0% 100%,  oklch(22% 0.05 200 / .3),  transparent 55%),
-        ${D.bg}`,
+        radial-gradient(ellipse 120% 50% at 50% -5%, oklch(88% 0.04 250 / .18), transparent 55%),
+        radial-gradient(ellipse 80% 40% at 10% 100%, oklch(92% 0.025 200 / .12), transparent 55%),
+        var(--bg)`,
     }}>
-      <div style={{width:'100%', maxWidth:980, display:'grid', gridTemplateColumns:'1.15fr 1fr', gap:52, alignItems:'start'}}>
+      <div style={{width:'100%', maxWidth:960, display:'grid', gridTemplateColumns:'1.15fr 1fr', gap:52, alignItems:'start'}}>
 
         {/* ── Left: branding + features + quick pick ── */}
         <div style={{display:'flex', flexDirection:'column', gap:32}}>
 
           {/* Logo */}
-          <div style={{display:'flex', alignItems:'center', gap:12}}>
-            <div style={{width:36, height:36, border:`1.5px solid ${D.line2}`, borderRadius:9, display:'grid', placeItems:'center', font:'800 14px var(--font-mono)', color:D.ink, letterSpacing:'-.02em'}}>ר</div>
-            <div>
-              <div style={{font:'700 15px var(--font-ui)', color:D.ink}}>רחל</div>
-              <div style={{font:'500 11px var(--font-ui)', color:D.ink3, letterSpacing:'.04em'}}>חמ״ל מרכזי · מטה</div>
-            </div>
-          </div>
+          <Crest subtitle="חמ״ל מרכזי · מטה"/>
 
           {/* Headline */}
           <div>
-            <h1 style={{margin:0, font:'700 44px var(--font-ui)', color:D.ink, letterSpacing:'-.03em', lineHeight:1.05}}>שלום, אנשי המטה</h1>
-            <div style={{font:'400 17px var(--font-ui)', color:D.ink3, marginTop:10, lineHeight:1.5}}>
+            <h1 style={{margin:0, font:'700 44px var(--font-ui)', color:'var(--ink)', letterSpacing:'-.03em', lineHeight:1.05}}>שלום, אנשי המטה</h1>
+            <div style={{font:'400 17px var(--font-ui)', color:'var(--ink-3)', marginTop:10, lineHeight:1.5}}>
               חמ״ל מרכזי רח״ל — גישה מורשית לאנשי מטה בלבד
             </div>
           </div>
 
           {/* Features */}
-          <div style={{display:'flex', flexDirection:'column', gap:12}}>
+          <div style={{display:'flex', flexDirection:'column', gap:10}}>
             {[
               { icon:'home',     text:'תמונת מצב ארצית בזמן אמת — עם רענון אוטומטי' },
               { icon:'bell',     text:'ניהול מצב לאומי ותדירות חובת הדיווח' },
@@ -186,107 +165,93 @@ function HQLogin({ users, onLogin }) {
               { icon:'user',     text:'ניהול ארגונים ונציגי השטח' },
             ].map(({ icon, text }) => (
               <div key={text} style={{display:'flex', alignItems:'center', gap:13}}>
-                <div style={{width:34, height:34, borderRadius:9, background:D.bg3, border:`1px solid ${D.line}`, display:'grid', placeItems:'center', flexShrink:0}}>
-                  <Icon name={icon} size={15} style={{color:D.ink3}}/>
+                <div style={{width:34, height:34, borderRadius:9, background:'var(--bg-2)', border:'1px solid var(--line)', display:'grid', placeItems:'center', flexShrink:0}}>
+                  <Icon name={icon} size={15} style={{color:'var(--ink-3)'}}/>
                 </div>
-                <span style={{font:'400 14px var(--font-ui)', color:D.ink2}}>{text}</span>
+                <span style={{font:'400 14px var(--font-ui)', color:'var(--ink-2)'}}>{text}</span>
               </div>
             ))}
           </div>
 
           {/* Quick pick */}
           {hqUsers.length > 0 && (
-            <div style={{display:'flex', flexDirection:'column', gap:10}}>
-              <div style={{height:1, background:D.line}}/>
-              <div style={{font:'600 10px var(--font-ui)', letterSpacing:'.09em', textTransform:'uppercase', color:D.ink4, marginBottom:2}}>
+            <div style={{display:'flex', flexDirection:'column', gap:9}}>
+              <div style={{height:1, background:'var(--line)'}}/>
+              <div style={{font:'600 10px var(--font-ui)', letterSpacing:'.09em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:2, marginTop:4}}>
                 כניסה מהירה — דמו
               </div>
               {hqUsers.map(u => (
                 <button key={u.id} onClick={() => quickPick(u)} disabled={busy}
-                  style={{appearance:'none', background:D.bg3, border:`1px solid ${D.line}`, borderRadius:13, padding:'13px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:13, textAlign:'right', width:'100%', font:'inherit', transition:'all .12s'}}
-                  onMouseEnter={e => { e.currentTarget.style.background='oklch(26% 0.012 80)'; e.currentTarget.style.borderColor=D.line2; }}
-                  onMouseLeave={e => { e.currentTarget.style.background=D.bg3; e.currentTarget.style.borderColor=D.line; }}>
-                  <div style={{width:40, height:40, borderRadius:11, background:D.bg2, border:`1px solid ${D.line}`, display:'grid', placeItems:'center', font:'700 14px var(--font-mono)', color:D.ink2, flexShrink:0}}>
+                  style={{appearance:'none', background:'var(--bg)', border:'1px solid var(--line)', borderRadius:11, padding:'11px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:12, textAlign:'right', width:'100%', font:'inherit', transition:'all .12s'}}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.background='var(--accent-bg)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor='var(--line)'; e.currentTarget.style.background='var(--bg)'; }}>
+                  <div style={{width:36, height:36, borderRadius:9, background:'var(--bg-2)', border:'1px solid var(--line)', display:'grid', placeItems:'center', font:'700 13px var(--font-mono)', color:'var(--ink-2)', flexShrink:0}}>
                     {u.full_name.split(' ').map(s=>s[0]).join('').slice(0,2)}
                   </div>
                   <div style={{flex:1}}>
-                    <div style={{font:'600 14px var(--font-ui)', color:D.ink}}>{u.full_name}</div>
-                    <div style={{font:'400 11px var(--font-ui)', color:D.ink3, marginTop:1}}>{u.title}</div>
+                    <div style={{font:'600 14px var(--font-ui)', color:'var(--ink)'}}>{u.full_name}</div>
+                    <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)', marginTop:1}}>{u.title}</div>
                   </div>
-                  <Icon name="arrow-l" size={14} style={{color:D.ink4, flexShrink:0}}/>
+                  <Icon name="arrow-l" size={14} style={{color:'var(--ink-3)', flexShrink:0}}/>
                 </button>
               ))}
             </div>
           )}
 
-          <div style={{font:'400 12px var(--font-ui)', color:D.ink4}}>
+          <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>
             נציגי שטח?{' '}
-            <a href="/" style={{color:'oklch(68% 0.14 250)', textDecoration:'none', fontWeight:500}}>כניסה לדיווח שטח ←</a>
+            <a href="/" style={{color:'var(--accent)', textDecoration:'none', fontWeight:500}}>כניסה לדיווח שטח ←</a>
           </div>
         </div>
 
-        {/* ── Right: login form ── */}
-        <div style={{borderRadius:22, overflow:'hidden', border:`1px solid ${D.line}`, boxShadow:'0 32px 80px oklch(0% 0 0 / .45)'}}>
+        {/* ── Right: login card ── */}
+        <div style={{borderRadius:22, overflow:'hidden', border:'1px solid var(--line)', boxShadow:'0 4px 6px oklch(0% 0 0 / .04), 0 20px 60px oklch(0% 0 0 / .10)'}}>
 
-          {/* Form header */}
-          <div style={{background:`linear-gradient(135deg, oklch(19% 0.012 80), oklch(22% 0.015 250))`, borderBottom:`1px solid ${D.line}`, padding:'24px 28px', display:'flex', alignItems:'center', gap:16}}>
-            <div style={{width:48, height:48, borderRadius:13, background:D.bg3, border:`1px solid ${D.line2}`, display:'grid', placeItems:'center', flexShrink:0}}>
-              <Icon name="shield" size={22} style={{color:D.ink2}}/>
+          {/* Card header — deep navy (distinct from field's bright blue) */}
+          <div style={{background:'linear-gradient(135deg, oklch(28% 0.12 260), oklch(22% 0.08 250))', padding:'24px 26px', display:'flex', alignItems:'center', gap:16}}>
+            <div style={{width:50, height:50, borderRadius:14, background:'oklch(100% 0 0 / .14)', display:'grid', placeItems:'center', flexShrink:0}}>
+              <Icon name="shield" size={23} stroke={1.8} style={{color:'white'}}/>
             </div>
             <div>
-              <div style={{font:'700 19px var(--font-ui)', color:D.ink}}>כניסה מאובטחת</div>
-              <div style={{font:'400 12px var(--font-ui)', color:D.ink3, marginTop:3}}>גישה מורשית לאנשי מטה בלבד</div>
+              <div style={{font:'700 20px var(--font-ui)', color:'white'}}>כניסה מאובטחת</div>
+              <div style={{font:'400 13px var(--font-ui)', color:'oklch(100% 0 0 / .65)', marginTop:2}}>
+                גישה מורשית לאנשי מטה בלבד
+              </div>
             </div>
           </div>
 
-          {/* Fields */}
-          <form onSubmit={submit} style={{background:D.surface, padding:'26px 28px', display:'flex', flexDirection:'column', gap:16}}>
-            <div>
-              <label style={{display:'block', marginBottom:7, font:'500 12px/1 var(--font-ui)', color:D.ink3, letterSpacing:'.04em'}}>
-                מספר תעודת זהות
-              </label>
-              <div style={{position:'relative'}}>
-                <Icon name="user" size={15} style={{position:'absolute', insetInlineStart:13, top:'50%', transform:'translateY(-50%)', color:D.ink4}}/>
-                <input
-                  style={{width:'100%', padding:'12px 13px', paddingInlineStart:40, font:'400 15px var(--font-mono)', color:D.ink, background:D.bg2, border:`1px solid ${D.line}`, borderRadius:9, outline:'none', boxSizing:'border-box', transition:'border-color .12s'}}
-                  inputMode="numeric" maxLength={9}
-                  value={id} onChange={e => setId(e.target.value.replace(/\D/g,''))}
-                  placeholder="9 ספרות"
-                  onFocus={e => e.target.style.borderColor=D.line2}
-                  onBlur={e => e.target.style.borderColor=D.line}
-                />
+          {/* Form body */}
+          <div style={{background:'var(--surface)'}}>
+            <form onSubmit={submit} style={{padding:'24px 26px', display:'flex', flexDirection:'column', gap:14}}>
+              <div>
+                <label className="label">מספר תעודת זהות</label>
+                <div style={{position:'relative'}}>
+                  <Icon name="user" size={15} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
+                  <input className="input num-input" inputMode="numeric" maxLength={9}
+                    value={id} onChange={e => setId(e.target.value.replace(/\D/g,''))}
+                    placeholder="9 ספרות" style={{paddingInlineStart:38}}/>
+                </div>
               </div>
-            </div>
-            <div>
-              <label style={{display:'block', marginBottom:7, font:'500 12px/1 var(--font-ui)', color:D.ink3, letterSpacing:'.04em'}}>
-                סיסמה
-              </label>
-              <div style={{position:'relative'}}>
-                <Icon name="lock" size={15} style={{position:'absolute', insetInlineStart:13, top:'50%', transform:'translateY(-50%)', color:D.ink4}}/>
-                <input
-                  style={{width:'100%', padding:'12px 13px', paddingInlineStart:40, font:'400 15px var(--font-ui)', color:D.ink, background:D.bg2, border:`1px solid ${D.line}`, borderRadius:9, outline:'none', boxSizing:'border-box', transition:'border-color .12s'}}
-                  type="password"
-                  value={pw} onChange={e => setPw(e.target.value)}
-                  placeholder="••••"
-                  onFocus={e => e.target.style.borderColor=D.line2}
-                  onBlur={e => e.target.style.borderColor=D.line}
-                />
+              <div>
+                <label className="label">סיסמה</label>
+                <div style={{position:'relative'}}>
+                  <Icon name="lock" size={15} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
+                  <input className="input" type="password"
+                    value={pw} onChange={e => setPw(e.target.value)}
+                    placeholder="••••" style={{paddingInlineStart:38}}/>
+                </div>
               </div>
-            </div>
-            {err && (
-              <div style={{font:'500 12px var(--font-ui)', color:'oklch(72% 0.18 28)', display:'flex', alignItems:'center', gap:7, padding:'10px 13px', background:'oklch(19% 0.06 28)', border:'1px solid oklch(30% 0.12 28)', borderRadius:9}}>
-                <Icon name="alert" size={13}/> {err}
-              </div>
-            )}
-            <button type="submit" disabled={busy}
-              style={{appearance:'none', border:0, cursor:'pointer', marginTop:4, padding:'14px', borderRadius:11, font:'600 15px var(--font-ui)', background:D.ink, color:D.bg, transition:'opacity .1s', opacity: busy ? .6 : 1}}>
-              {busy ? 'מתחבר…' : 'כניסה למטה'}
-            </button>
-
-            <div style={{font:'400 11px var(--font-ui)', color:D.ink4, textAlign:'center', marginTop:2}}>
-              גישה מוגבלת לאנשי מטה רח״ל בלבד
-            </div>
-          </form>
+              {err && (
+                <div style={{font:'500 13px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:7, padding:'10px 13px', background:'var(--bad-bg)', border:'1px solid var(--bad-line)', borderRadius:9}}>
+                  <Icon name="alert" size={13}/> {err}
+                </div>
+              )}
+              <button type="submit" disabled={busy}
+                style={{appearance:'none', border:0, cursor:'pointer', background:'linear-gradient(135deg, oklch(28% 0.12 260), oklch(22% 0.08 250))', color:'white', padding:'13px', borderRadius:11, font:'600 15px var(--font-ui)', marginTop:2, transition:'opacity .1s', opacity: busy ? .6 : 1}}>
+                {busy ? 'מתחבר…' : 'כניסה למטה'}
+              </button>
+            </form>
+          </div>
         </div>
 
       </div>

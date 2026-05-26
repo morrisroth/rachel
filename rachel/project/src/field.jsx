@@ -53,7 +53,7 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
 
   const lastReport = history[0];
   const dailyOk = lastReport && reportIsWithin24h(lastReport.reported_at);
-  const isPc = viewport === 'fullscreen';
+  const isPc = viewport === 'fullscreen' || !narrow;
   const orgName = org?.name || '';
 
   const notifBanner = notifications.length > 0 && (

@@ -116,7 +116,7 @@ function FieldLogin({ users, onLogin }) {
     setBusy(true);
     const { user } = await dbLogin(id, pw);
     if (!user) { setBusy(false); return setErr('פרטי כניסה שגויים — בדוק ת״ז וסיסמה'); }
-    if (user.role !== 'FIELD_USER') { setBusy(false); return setErr('דף זה מיועד לנציגי שטח בלבד'); }
+    if (user.role !== 'FIELD_USER') { setBusy(false); return setErr('גישה נדחתה — דף זה מיועד לנציגי שטח בלבד. אנשי מטה? עברו לחמ״ל.'); }
     await onLogin(user);
     setBusy(false);
   }
@@ -137,7 +137,7 @@ function FieldLogin({ users, onLogin }) {
     }}>
       {/* Brand */}
       <div style={{marginBottom:28, display:'flex', flexDirection:'column', alignItems:'center', gap:8}}>
-        <Crest subtitle="מערכת דיווח שטח · רחל"/>
+        <Crest subtitle="רחל · מערכת דיווח שטח"/>
       </div>
 
       {/* Card */}
@@ -149,9 +149,9 @@ function FieldLogin({ users, onLogin }) {
             <Icon name="home" size={23} stroke={1.8} style={{color:'white'}}/>
           </div>
           <div>
-            <div style={{font:'700 20px var(--font-ui)', color:'white'}}>נציג שטח</div>
+            <div style={{font:'700 20px var(--font-ui)', color:'white'}}>ברוכים הבאים, נציגי השטח</div>
             <div style={{font:'400 13px var(--font-ui)', color:'oklch(100% 0 0 / .72)', marginTop:2}}>
-              כניסה לדיווח מלאי יומי
+              מלאו את דיווח המלאי היומי עבור הארגון שלכם
             </div>
           </div>
         </div>

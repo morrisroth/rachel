@@ -136,7 +136,7 @@ function HQLogin({ users, onLogin }) {
     setBusy(true);
     const { user } = await dbLogin(id, pw);
     if (!user) { setBusy(false); return setErr('פרטי כניסה שגויים — בדוק ת״ז וסיסמה'); }
-    if (user.role !== 'HQ_USER') { setBusy(false); return setErr('דף זה מיועד לאנשי מטה רח״ל בלבד'); }
+    if (user.role !== 'HQ_USER') { setBusy(false); return setErr('גישה נדחתה — דף זה מיועד לאנשי מטה בלבד. נציגי שטח? עברו לדיווח שטח.'); }
     await onLogin(user);
     setBusy(false);
   }
@@ -171,9 +171,9 @@ function HQLogin({ users, onLogin }) {
 
           {/* Headline */}
           <div>
-            <h1 style={{margin:0, font:'700 44px var(--font-ui)', color:D.ink, letterSpacing:'-.03em', lineHeight:1.05}}>מטה רח״ל</h1>
+            <h1 style={{margin:0, font:'700 44px var(--font-ui)', color:D.ink, letterSpacing:'-.03em', lineHeight:1.05}}>שלום, אנשי המטה</h1>
             <div style={{font:'400 17px var(--font-ui)', color:D.ink3, marginTop:10, lineHeight:1.5}}>
-              ניטור ארצי · ניהול ארגונים · ייצוא נתונים
+              חמ״ל מרכזי רח״ל — גישה מורשית לאנשי מטה בלבד
             </div>
           </div>
 

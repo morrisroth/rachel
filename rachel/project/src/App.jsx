@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   dbFetchOrganizations, dbFetchUsers, dbLogin,
-  dbFetchHistory,
-  dbInsertReport,
+  dbFetchHistory, dbInsertReport, dbFetchNotifications,
 } from './data.js';
 import { Icon, Crest } from './components.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakButton } from './tweaks-panel.jsx';
@@ -21,7 +20,8 @@ export function App() {
   const [session, setSession]  = useState(null);
   const [orgs,    setOrgs]     = useState([]);
   const [users,   setUsers]    = useState([]);
-  const [history, setHistory]  = useState([]);
+  const [history, setHistory]        = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [national, setNational] = useState(t.national);
   const [loading, setLoading]   = useState(true);
 
@@ -42,14 +42,19 @@ export function App() {
   }, [t.density, t.dark]);
 
   async function login(user) {
-    const hist = await dbFetchHistory(user.organization_id);
+    const [hist, notifs] = await Promise.all([
+      dbFetchHistory(user.organization_id),
+      dbFetchNotifications(user.organization_id),
+    ]);
     setHistory(hist);
+    setNotifications(notifs);
     setSession(user);
   }
 
   function logout() {
     setSession(null);
     setHistory([]);
+    setNotifications([]);
   }
 
   async function submitReport(payload) {
@@ -79,6 +84,7 @@ export function App() {
   return (
     <>
       <FieldShell user={session} org={sessionOrg} history={history}
+                  notifications={notifications}
                   onSubmit={submitReport} onLogout={logout}
                   mode={national} viewport={t.fieldView}/>
       <TweaksPanel>

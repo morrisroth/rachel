@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport } from './data.js';
+import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications } from './data.js';
 import { Icon, Crest, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
 import { OrgsView } from './orgs.jsx';
 
 export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor, onRefreshMonitor, onAddOrganization, onUpdateOrganization }) {
   const [tab, setTab] = useState('monitor');
+  const [notifications, setNotifications] = useState([]);
+  useEffect(() => { dbFetchNotifications().then(setNotifications); }, []);
   const [exportLog, setExportLog] = useState([
     { id: 1, user_id: user.id, type: 'אקסל ארצי מלא',        at: Date.now() - 6 * 3600 * 1000 },
     { id: 2, user_id: user.id, type: 'אקסל — משרד האנרגיה', at: Date.now() - 28 * 3600 * 1000 },
@@ -21,6 +23,8 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
         {tab === 'orgs'    && <OrgsView orgs={orgs} users={users} onAdd={onAddOrganization} onUpdate={onUpdateOrganization}/>}
         {tab === 'export'  && <ExportView onExport={doExport} mode={mode} orgs={orgs}/>}
         {tab === 'mode'    && <ModeView mode={mode} onSetMode={onSetMode}/>}
+        {tab === 'notify'  && <NotifyView user={user} orgs={orgs} notifications={notifications}
+                               onSend={async (n) => { await dbSendNotification(n); const all = await dbFetchNotifications(); setNotifications(all); }}/>}
         {tab === 'audit'   && <AuditView log={exportLog} users={users}/>}
       </main>
 
@@ -31,7 +35,8 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
             { id:'monitor', icon:'home',     label:'ניטור ארגונים' },
             { id:'orgs',    icon:'user',     label:'ניהול ארגונים' },
             { id:'export',  icon:'download', label:'ייצוא נתונים ארצי' },
-            { id:'mode',    icon:'bell',     label:'מצב לאומי והתראות' },
+            { id:'notify',  icon:'bell',     label:'שליחת התראות' },
+            { id:'mode',    icon:'shield',   label:'מצב לאומי' },
             { id:'audit',   icon:'history',  label:'יומן ייצוא ופעולות' },
           ].map(n => (
             <button key={n.id} onClick={() => setTab(n.id)}
@@ -436,6 +441,92 @@ function ExportView({ onExport, mode, orgs }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function NotifyView({ user, orgs, notifications, onSend }) {
+  const [msg, setMsg]       = useState('');
+  const [target, setTarget] = useState('all');
+  const [orgId, setOrgId]   = useState('');
+  const [busy, setBusy]     = useState(false);
+  const [sent, setSent]     = useState(false);
+  const [err, setErr]       = useState('');
+
+  async function send() {
+    if (!msg.trim()) return;
+    setErr(''); setBusy(true); setSent(false);
+    try {
+      await onSend({
+        message: msg.trim(),
+        org_id: target === 'org' ? Number(orgId) : null,
+        sent_by: user.id,
+      });
+      setMsg(''); setSent(true); setTimeout(() => setSent(false), 3000);
+    } catch(e) { setErr(e.message || 'שגיאה בשליחה'); }
+    setBusy(false);
+  }
+
+  return (
+    <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:780}}>
+      <PageHeader title="שליחת התראות לשטח" sub="הודעות יוצגו לנציגי השטח בעת כניסה לדיווח"/>
+
+      <div className="card" style={{padding:24, display:'flex', flexDirection:'column', gap:16}}>
+        <div style={{display:'flex', flexDirection:'column', gap:8}}>
+          <label style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>יעד ההתראה</label>
+          <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
+            {[
+              { value:'all', label:'כל הארגונים' },
+              { value:'org', label:'ארגון ספציפי' },
+            ].map(o => (
+              <label key={o.value} style={{display:'flex', alignItems:'center', gap:8, cursor:'pointer', font:'500 14px var(--font-ui)'}}>
+                <input type="radio" name="target" value={o.value} checked={target===o.value} onChange={() => setTarget(o.value)} style={{accentColor:'var(--ink)'}}/>
+                {o.label}
+              </label>
+            ))}
+          </div>
+          {target === 'org' && (
+            <select className="select" value={orgId} onChange={e => setOrgId(e.target.value)} style={{maxWidth:340}}>
+              <option value="">— בחר ארגון —</option>
+              {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          )}
+        </div>
+
+        <div style={{display:'flex', flexDirection:'column', gap:8}}>
+          <label style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>תוכן ההתראה</label>
+          <textarea className="input" rows={4} maxLength={500} placeholder="הקלד את ההודעה לנציגי השטח…"
+            value={msg} onChange={e => setMsg(e.target.value)} style={{resize:'vertical'}}/>
+          <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)', textAlign:'left'}}>{msg.length}/500</div>
+        </div>
+
+        {err && <div className="banner banner--bad"><Icon name="alert" size={16}/> {err}</div>}
+        {sent && <div className="banner banner--ok anim-in"><Icon name="check" size={16}/> ההתראה נשלחה בהצלחה.</div>}
+
+        <button className="btn btn--accent" disabled={busy || !msg.trim() || (target==='org' && !orgId)} onClick={send} style={{alignSelf:'flex-start', minWidth:200}}>
+          {busy ? 'שולח…' : <><Icon name="bell" size={15}/> {target==='all' ? 'שלח לכולם' : 'שלח לארגון'}</>}
+        </button>
+      </div>
+
+      {notifications.length > 0 && (
+        <div style={{display:'flex', flexDirection:'column', gap:12}}>
+          <div style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)', letterSpacing:'.04em', textTransform:'uppercase'}}>התראות שנשלחו</div>
+          <div className="card" style={{overflow:'hidden'}}>
+            <table className="tbl">
+              <thead><tr><th>הודעה</th><th>יעד</th><th>נשלח</th></tr></thead>
+              <tbody>
+                {notifications.map(n => (
+                  <tr key={n.id}>
+                    <td style={{maxWidth:400}}>{n.message}</td>
+                    <td>{n.org_id ? (orgs.find(o=>o.id===n.org_id)?.name || `org ${n.org_id}`) : <span className="chip chip--accent" style={{fontSize:11}}>כולם</span>}</td>
+                    <td style={{color:'var(--ink-3)'}}>{formatDate(new Date(n.sent_at).getTime())}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

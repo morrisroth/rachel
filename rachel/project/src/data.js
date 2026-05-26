@@ -7,20 +7,22 @@ export const CATEGORIES = [
   { id: 4, name: 'משרד הבריאות — ציוד רפואי', short: 'בריאות' },
 ];
 
+export const ALL_UNITS = ['טון', 'ק"ל', 'קג', 'יחידות', 'מנות', 'משטח', 'מ"ק', 'ליטר'];
+
 export const PRODUCTS = [
-  { id: 101, category_id: 1, name: 'קמח חיטה', unit: 'טון' },
-  { id: 102, category_id: 1, name: 'אורז לבן', unit: 'טון' },
-  { id: 103, category_id: 1, name: 'שמן חמניות', unit: 'ק"ל' },
-  { id: 104, category_id: 1, name: 'סוכר לבן', unit: 'טון' },
-  { id: 105, category_id: 1, name: 'מים מינרליים — בקבוקים 1.5 ליטר', unit: 'יחידות' },
-  { id: 201, category_id: 2, name: 'סולר תעשייתי', unit: 'ק"ל' },
-  { id: 202, category_id: 2, name: 'בנזין 95', unit: 'ק"ל' },
-  { id: 203, category_id: 2, name: 'גז בישול (LPG)', unit: 'טון' },
-  { id: 301, category_id: 3, name: 'גרעיני חיטה', unit: 'טון' },
-  { id: 302, category_id: 3, name: 'מספוא כוספאות', unit: 'טון' },
-  { id: 401, category_id: 4, name: 'מכשירי הנשמה', unit: 'יחידות' },
-  { id: 402, category_id: 4, name: 'מנות דם — O שלילי', unit: 'מנות' },
-  { id: 403, category_id: 4, name: 'חמצן נוזלי', unit: 'ק"ל' },
+  { id: 101, category_id: 1, name: 'קמח חיטה',                      unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
+  { id: 102, category_id: 1, name: 'אורז לבן',                       unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
+  { id: 103, category_id: 1, name: 'שמן חמניות',                     unit: 'ק"ל',    allowed_units: ['ק"ל', 'ליטר', 'יחידות'] },
+  { id: 104, category_id: 1, name: 'סוכר לבן',                       unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
+  { id: 105, category_id: 1, name: 'מים מינרליים — בקבוקים 1.5 ליטר', unit: 'יחידות', allowed_units: ['יחידות', 'משטח', 'טון'] },
+  { id: 201, category_id: 2, name: 'סולר תעשייתי',                   unit: 'ק"ל',    allowed_units: ['ק"ל', 'ליטר', 'טון'] },
+  { id: 202, category_id: 2, name: 'בנזין 95',                       unit: 'ק"ל',    allowed_units: ['ק"ל', 'ליטר', 'טון'] },
+  { id: 203, category_id: 2, name: 'גז בישול (LPG)',                 unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
+  { id: 301, category_id: 3, name: 'גרעיני חיטה',                    unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
+  { id: 302, category_id: 3, name: 'מספוא כוספאות',                  unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
+  { id: 401, category_id: 4, name: 'מכשירי הנשמה',                   unit: 'יחידות', allowed_units: ['יחידות'] },
+  { id: 402, category_id: 4, name: 'מנות דם — O שלילי',             unit: 'מנות',   allowed_units: ['מנות', 'יחידות'] },
+  { id: 403, category_id: 4, name: 'חמצן נוזלי',                     unit: 'ק"ל',    allowed_units: ['ק"ל', 'ליטר', 'טון'] },
 ];
 
 export const ORG_TYPES = [
@@ -164,6 +166,27 @@ export async function dbFetchLatestReportLines(org_id) {
       incoming_stock: Number(l.incoming_stock),
     })),
   };
+}
+
+export async function dbFetchNotifications(org_id = null) {
+  let query = supabase
+    .from('notifications')
+    .select('*')
+    .order('sent_at', { ascending: false })
+    .limit(20);
+  if (org_id) query = query.or(`org_id.eq.${org_id},org_id.is.null`);
+  const { data } = await query;
+  return data || [];
+}
+
+export async function dbSendNotification({ message, org_id = null, sent_by }) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .insert({ message, org_id, sent_by, sent_at: new Date().toISOString() })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function dbFetchReportsForExport(fromMs = null, toMs = null) {

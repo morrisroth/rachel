@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PRODUCTS, CATEGORIES, INCOMING_STATUSES, QUALITY_STATUSES } from './data.js';
+import { PRODUCTS, CATEGORIES, INCOMING_STATUSES, QUALITY_STATUSES, ALL_UNITS } from './data.js';
 import { Icon, Crest, StatusBlock, ProductCombobox, formatDate, relTime, reportIsWithin24h } from './components.jsx';
 
 function emptyLine() {
@@ -38,7 +38,7 @@ function lineFromHistory(hist, products) {
   };
 }
 
-export function FieldShell({ user, org, history, onSubmit, onLogout, mode, viewport = 'phone' }) {
+export function FieldShell({ user, org, history, notifications = [], onSubmit, onLogout, mode, viewport = 'phone' }) {
   const [tab, setTab] = useState('report');
   const [toast, setToast] = useState(null);
   const showToast = (text, kind='ok') => { setToast({ text, kind }); setTimeout(() => setToast(null), 2600); };
@@ -55,6 +55,17 @@ export function FieldShell({ user, org, history, onSubmit, onLogout, mode, viewp
   const dailyOk = lastReport && reportIsWithin24h(lastReport.reported_at);
   const isPc = viewport === 'fullscreen';
   const orgName = org?.name || '';
+
+  const notifBanner = notifications.length > 0 && (
+    <div style={{padding:'10px 16px', display:'flex', flexDirection:'column', gap:8, background:'oklch(96% 0.04 250)', borderBottom:'1px solid oklch(82% 0.06 250)'}}>
+      {notifications.slice(0, 3).map(n => (
+        <div key={n.id} style={{display:'flex', alignItems:'flex-start', gap:10}}>
+          <Icon name="bell" size={14} style={{color:'var(--accent)', flexShrink:0, marginTop:2}}/>
+          <div style={{font:'500 13px var(--font-ui)', color:'oklch(30% 0.10 250)', flex:1}}>{n.message}</div>
+        </div>
+      ))}
+    </div>
+  );
 
   const tabContent = (
     <>
@@ -115,6 +126,7 @@ export function FieldShell({ user, org, history, onSubmit, onLogout, mode, viewp
             <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={14}/></button>
           </div>
         </header>
+        {notifBanner}
         {tabContent}
         {toast && (
           <div className="anim-in" style={{position:'fixed', left:'50%', bottom:24, transform:'translateX(-50%)', padding:'12px 18px', background: toast.kind === 'ok' ? 'var(--ok)' : 'var(--bad)', color:'white', borderRadius:8, font:'500 14px var(--font-ui)', display:'flex', alignItems:'center', gap:10, boxShadow:'0 12px 32px oklch(0% 0 0 / .18)', zIndex:50}}>
@@ -139,6 +151,7 @@ export function FieldShell({ user, org, history, onSubmit, onLogout, mode, viewp
         </div>
       </div>
       <div style={{flex:'1 1 auto', overflowY:'auto', position:'relative'}}>
+        {notifBanner}
         {tabContent}
       </div>
       {bottomNav}
@@ -303,6 +316,8 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
 function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalog, onPickFree, onRemove, onRestoreYesterday }) {
   const isFree = line.product?.kind === 'free';
   const unit = line.unit;
+  const prod = PRODUCTS.find(p => p.id === line.product?.product_id);
+  const allowedUnits = isFree ? ALL_UNITS : (prod?.allowed_units || (unit ? [unit] : []));
   return (
     <div className={`card ${active ? 'row-hl' : ''}`} style={{padding:14, display:'flex', flexDirection:'column', gap:12}} onFocus={onFocus} onClick={onFocus}>
       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:8}}>
@@ -347,7 +362,7 @@ function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalo
             <input type="number" min="0" step="0.01" className="input num-input" value={line.current_stock}
               onChange={e => onChange({ current_stock: e.target.value })} placeholder="0.00"
               style={{paddingInlineEnd: unit || isFree ? 56 : 12}}/>
-            <UnitBadge unit={unit} isFree={isFree} onChangeUnit={(u) => onChange({ unit: u })}/>
+            <UnitBadge unit={unit} allowedUnits={allowedUnits} onChangeUnit={(u) => onChange({ unit: u })}/>
           </div>
           {errors[line.key + ':current'] && <ErrorLabel text={errors[line.key + ':current']}/>}
         </div>
@@ -357,7 +372,7 @@ function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalo
             <input type="number" min="0" step="0.01" className="input num-input" value={line.incoming_stock}
               onChange={e => onChange({ incoming_stock: e.target.value })} placeholder="0.00"
               style={{paddingInlineEnd: unit || isFree ? 56 : 12}}/>
-            <UnitBadge unit={unit} isFree={isFree} onChangeUnit={(u) => onChange({ unit: u })}/>
+            <UnitBadge unit={unit} allowedUnits={allowedUnits} onChangeUnit={(u) => onChange({ unit: u })}/>
           </div>
         </div>
       </div>
@@ -388,23 +403,24 @@ function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalo
   );
 }
 
-function UnitBadge({ unit, isFree, onChangeUnit }) {
-  if (!unit && !isFree) return null;
-  if (isFree && !unit) {
+function UnitBadge({ unit, allowedUnits = [], onChangeUnit }) {
+  if (!allowedUnits.length && !unit) return null;
+  const canChange = allowedUnits.length > 1;
+  if (canChange) {
     return (
-      <select onChange={e => onChangeUnit(e.target.value)} value={unit}
-        style={{position:'absolute', insetInlineEnd:6, top:4, height:34, padding:'0 6px', border:'1px solid var(--line-2)', borderRadius:5, background:'var(--bg-2)', font:'500 12px var(--font-mono)', color:'var(--ink-2)'}}>
-        <option value="">יחידה</option>
-        <option value="טון">טון</option>
-        <option value='ק"ל'>ק"ל</option>
-        <option value="יחידות">יחידות</option>
-        <option value="מנות">מנות</option>
+      <select value={unit || ''} onChange={e => onChangeUnit(e.target.value)}
+        style={{position:'absolute', insetInlineEnd:6, top:4, height:34, padding:'0 6px', border:'1px solid var(--line-2)', borderRadius:5, background:'var(--bg-2)', font:'500 12px var(--font-mono)', color:'var(--ink-2)', cursor:'pointer'}}>
+        {!unit && <option value="">יחידה</option>}
+        {allowedUnits.map(u => <option key={u} value={u}>{u}</option>)}
       </select>
     );
   }
-  return (
-    <span className="mono" style={{position:'absolute', insetInlineEnd:8, top:'50%', transform:'translateY(-50%)', padding:'3px 8px', borderRadius:4, background:'var(--bg-2)', border:'1px solid var(--line)', font:'600 12px var(--font-mono)', color:'var(--ink-2)'}}>{unit}</span>
-  );
+  if (unit) {
+    return (
+      <span className="mono" style={{position:'absolute', insetInlineEnd:8, top:'50%', transform:'translateY(-50%)', padding:'3px 8px', borderRadius:4, background:'var(--bg-2)', border:'1px solid var(--line)', font:'600 12px var(--font-mono)', color:'var(--ink-2)'}}>{unit}</span>
+    );
+  }
+  return null;
 }
 
 function ErrorLabel({ text }) {

@@ -107,17 +107,20 @@ function MonitorView({ monitor, mode, orgs, onRefresh }) {
     }
   }
 
-  const enriched = monitor.map(m => {
-    const org = orgs.find(o => o.id === m.org_id);
-    const cat = CATEGORIES.find(c => c.id === org?.cat_id);
-    const hoursAgo = (Date.now() - m.last) / 3600000;
-    const dead = hoursAgo > threshold;
-    return { ...m, org, cat, hoursAgo, dead };
-  }).filter(m => m.org);
+  // Build enriched list from ALL active orgs, not just those with reports
+  const enriched = orgs
+    .filter(o => o.active && o.cat_id !== null)
+    .map(o => {
+      const m   = monitor.find(r => r.org_id === o.id);
+      const cat = CATEGORIES.find(c => c.id === o.cat_id);
+      const hoursAgo = m ? (Date.now() - m.last) / 3600000 : Infinity;
+      const dead = hoursAgo > threshold;
+      return { org_id: o.id, org: o, cat, hoursAgo, dead, last: m?.last || null, user: m?.user || '—' };
+    });
 
   const reported = enriched.filter(m => !m.dead).length;
   const total    = enriched.length;
-  const dead     = total - reported;
+  const deadCount = total - reported;
 
   const filtered = enriched.filter(m =>
     (filter === 'all' || (filter === 'reported' ? !m.dead : m.dead)) &&
@@ -130,53 +133,52 @@ function MonitorView({ monitor, mode, orgs, onRefresh }) {
         title="ניטור ארגונים"
         sub={`תמונת מצב ארצית · ${mode === 'emergency' ? 'תדירות יומית (חירום)' : 'תדירות שבועית (שגרה)'} · מתרענן כל 30 שניות`}
         right={<PillToggle value={filter} onChange={setFilter}
-          options={[{value:'all',label:`הכל · ${total}`},{value:'reported',label:`דיווחו · ${reported}`},{value:'dead',label:`שטחים מתים · ${dead}`}]}/>}
+          options={[{value:'all',label:`הכל · ${total}`},{value:'reported',label:`דיווחו · ${reported}`},{value:'dead',label:`שטחים מתים · ${deadCount}`}]}/>}
       />
       <div className="hq-kpis">
         <Kpi label="ארגונים מחויבי דיווח" value={total}/>
         <Kpi label="דיווחו בחלון הנדרש"  value={reported} accent="ok"/>
-        <Kpi label="שטחים מתים"           value={dead} accent={dead > 0 ? 'bad' : 'ok'}/>
+        <Kpi label="שטחים מתים"           value={deadCount} accent={deadCount > 0 ? 'bad' : 'ok'}/>
         <Kpi label="חלון דיווח נוכחי"     value={mode === 'emergency' ? '24 ש׳' : '168 ש׳'}/>
       </div>
 
-      {monitor.length === 0 && (
-        <div className="card" style={{padding:'32px', textAlign:'center', color:'var(--ink-3)', font:'400 14px var(--font-ui)'}}>
-          אין דיווחים עדיין — נציגי השטח לא שלחו דיווח עדיין.
+      <div className="card" style={{overflow:'hidden'}}>
+        <div style={{padding:'12px 14px', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid var(--line)'}}>
+          <Icon name="search" size={14}/>
+          <input className="input" placeholder="חיפוש לפי שם ארגון…" value={searchQ} onChange={e => setSearchQ(e.target.value)}
+                 style={{border:0, padding:'4px 0', boxShadow:'none', fontSize:14, background:'transparent'}}/>
         </div>
-      )}
-
-      {monitor.length > 0 && (
-        <div className="card" style={{overflow:'hidden'}}>
-          <div style={{padding:'12px 14px', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid var(--line)'}}>
-            <Icon name="search" size={14}/>
-            <input className="input" placeholder="חיפוש לפי שם ארגון…" value={searchQ} onChange={e => setSearchQ(e.target.value)}
-                   style={{border:0, padding:'4px 0', boxShadow:'none', fontSize:14, background:'transparent'}}/>
-          </div>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th style={{width:40}}>#</th>
-                <th>ארגון</th>
-                <th>סוג</th>
-                <th>משרד</th>
-                <th>איש קשר</th>
-                <th>דיווח אחרון</th>
-                <th>סטטוס</th>
-                <th style={{width:100}}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((m, i) => [
-                <tr key={m.org_id}>
-                  <td style={{color:'var(--ink-3)'}} className="num">{String(i+1).padStart(2,'0')}</td>
-                  <td style={{fontWeight:500}}>{m.org.name}</td>
-                  <td style={{color:'var(--ink-2)'}}>{m.org.type}</td>
-                  <td>{m.cat ? <span className="chip" style={{fontSize:11}}>{m.cat.short}</span> : '—'}</td>
-                  <td style={{color:'var(--ink-2)'}}>{m.user}</td>
-                  <td>
-                    <span className="num" style={{color:'var(--ink)'}}>{formatDate(m.last)}</span>
-                    <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{relTime(m.last)}</div>
-                  </td>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th style={{width:40}}>#</th>
+              <th>ארגון</th>
+              <th>סוג</th>
+              <th>משרד</th>
+              <th>איש קשר</th>
+              <th>דיווח אחרון</th>
+              <th>סטטוס</th>
+              <th style={{width:100}}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && (
+              <tr><td colSpan={8} style={{textAlign:'center', padding:'30px 0', color:'var(--ink-3)'}}>אין ארגונים תואמים.</td></tr>
+            )}
+            {filtered.map((m, i) => [
+              <tr key={m.org_id}>
+                <td style={{color:'var(--ink-3)'}} className="num">{String(i+1).padStart(2,'0')}</td>
+                <td style={{fontWeight:500}}>{m.org.name}</td>
+                <td style={{color:'var(--ink-2)'}}>{m.org.type}</td>
+                <td>{m.cat ? <span className="chip" style={{fontSize:11}}>{m.cat.short}</span> : '—'}</td>
+                <td style={{color:'var(--ink-2)'}}>{m.user}</td>
+                <td>
+                  {m.last
+                    ? <><span className="num" style={{color:'var(--ink)'}}>{formatDate(m.last)}</span>
+                        <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{relTime(m.last)}</div></>
+                    : <span style={{color:'var(--ink-3)', font:'400 13px var(--font-ui)'}}>לא דיווח מעולם</span>
+                  }
+                </td>
                   <td>
                     {m.dead
                       ? <span className="chip chip--bad"><Icon name="alert" size={11}/> שטח מת</span>
@@ -205,9 +207,8 @@ function MonitorView({ monitor, mode, orgs, onRefresh }) {
                 ),
               ])}
             </tbody>
-          </table>
-        </div>
-      )}
+        </table>
+      </div>
     </div>
   );
 }

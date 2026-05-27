@@ -234,10 +234,15 @@ export async function dbFetchAppSettings() {
 }
 
 export async function dbSaveAppSetting(key, value) {
-  await supabase.from('app_settings').upsert({ key, value }, { onConflict: 'key' });
+  const { error } = await supabase.from('app_settings').upsert({ key, value }, { onConflict: 'key' });
+  if (error) throw error;
 }
 
 const EMAIL_API = '/api/email';
+
+export async function dbUpdateUser(user_id, patch) {
+  await supabase.from('rachel_users').update(patch).eq('id', user_id);
+}
 
 export async function dbSendEmail({ to, subject, html }) {
   const res = await fetch(`${EMAIL_API}/send`, {

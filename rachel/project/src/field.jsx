@@ -38,6 +38,51 @@ function lineFromHistory(hist, products) {
   };
 }
 
+const EXCEL_COLS = [
+  { key: 'מוצר',         required: true,  note: 'שם מוצר מהקטלוג או מוצר חופשי' },
+  { key: 'מלאי נוכחי',  required: true,  note: 'מספר שלם ≥ 0' },
+  { key: 'מלאי בדרך',   required: false, note: 'מספר שלם ≥ 0' },
+  { key: 'יחידה',        required: false, note: 'טון / קג / ק"ל / יחידות / …' },
+  { key: 'סטטוס אספקה', required: false, note: 'תקין ובדרך / מעוכב בנמל / תקוע בחו"ל' },
+  { key: 'סטטוס איכות', required: false, note: 'תקין / בלאי / פסול' },
+  { key: 'הערות',        required: false, note: 'טקסט חופשי' },
+];
+
+function parseExcelToLines(rows) {
+  return rows
+    .filter(r => r['מוצר'] && String(r['מוצר']).trim())
+    .map(r => {
+      const name = String(r['מוצר']).trim();
+      const p = PRODUCTS.find(pp => pp.name === name);
+      const unit = String(r['יחידה'] || p?.unit || '').trim();
+      const incomingStatus = INCOMING_STATUSES.includes(r['סטטוס אספקה']) ? r['סטטוס אספקה'] : 'תקין ובדרך';
+      const qualityStatus  = QUALITY_STATUSES.includes(r['סטטוס איכות'])  ? r['סטטוס איכות']  : 'תקין';
+      return {
+        ...emptyLine(),
+        product:         p ? { kind: 'catalog', product_id: p.id } : { kind: 'free', name },
+        category_id:     p?.category_id ?? null,
+        unit,
+        current_stock:   String(r['מלאי נוכחי'] ?? ''),
+        incoming_stock:  String(r['מלאי בדרך']  ?? ''),
+        incoming_status: incomingStatus,
+        quality_status:  qualityStatus,
+        notes:           String(r['הערות'] || ''),
+      };
+    });
+}
+
+async function downloadExcelTemplate() {
+  const XLSX = await import('xlsx');
+  const sample = [
+    { 'מוצר': 'קמח חיטה', 'מלאי נוכחי': 50, 'מלאי בדרך': 10, 'יחידה': 'טון', 'סטטוס אספקה': 'תקין ובדרך', 'סטטוס איכות': 'תקין', 'הערות': '' },
+    { 'מוצר': 'אורז לבן',  'מלאי נוכחי': 20, 'מלאי בדרך': 0,  'יחידה': 'טון', 'סטטוס אספקה': 'תקין ובדרך', 'סטטוס איכות': 'תקין', 'הערות': '' },
+  ];
+  const ws = XLSX.utils.json_to_sheet(sample, { header: EXCEL_COLS.map(c => c.key) });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'דיווח מלאי');
+  XLSX.writeFile(wb, 'תבנית-דיווח-מלאי.xlsx');
+}
+
 export function FieldShell({ user, org, history, notifications = [], onSubmit, onLogout, mode, viewport = 'phone' }) {
   const [tab, setTab] = useState('report');
   const [toast, setToast] = useState(null);
@@ -206,6 +251,38 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
   const [imagePreview, setImagePreview] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const excelRef = useRef(null);
+  const [excelRows, setExcelRows]     = useState(null);
+  const [excelFileName, setExcelFileName] = useState('');
+  const [excelError, setExcelError]   = useState('');
+
+  async function onExcelChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExcelError('');
+    try {
+      const XLSX = await import('xlsx');
+      const buf  = await file.arrayBuffer();
+      const wb   = XLSX.read(buf);
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!rows.length) { setExcelError('הקובץ ריק או לא ניתן לקריאה.'); return; }
+      const missing = rows.some(r => !r['מוצר'] || r['מלאי נוכחי'] === '');
+      if (missing) { setExcelError('חסרות עמודות חובה: "מוצר" ו-"מלאי נוכחי".'); return; }
+      setExcelRows(rows);
+      setExcelFileName(file.name);
+    } catch { setExcelError('שגיאה בקריאת הקובץ.'); }
+    if (excelRef.current) excelRef.current.value = '';
+  }
+
+  function applyExcel() {
+    if (!excelRows) return;
+    const parsed = parseExcelToLines(excelRows);
+    if (!parsed.length) return;
+    setLines(parsed);
+    setExcelRows(null);
+    setExcelFileName('');
+  }
 
   function onFileChange(e) {
     const file = e.target.files?.[0];
@@ -247,6 +324,8 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
       else if (l.product.kind === 'free' && !l.category_id) errs[l.key + ':category'] = 'יש לבחור משרד ממשלתי';
       if (l.current_stock === '' || isNaN(Number(l.current_stock))) errs[l.key + ':current'] = 'חסר מלאי נוכחי';
       else if (Number(l.current_stock) < 0) errs[l.key + ':current'] = 'אסור שלילי';
+      else if (!Number.isInteger(Number(l.current_stock))) errs[l.key + ':current'] = 'יש להזין מספר שלם בלבד';
+      if (l.incoming_stock !== '' && !isNaN(Number(l.incoming_stock)) && !Number.isInteger(Number(l.incoming_stock))) errs[l.key + ':incoming'] = 'יש להזין מספר שלם בלבד';
     });
     return errs;
   }
@@ -282,6 +361,10 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
         <button className="btn btn--ghost" onClick={addFreeLine} style={{flex:'0 0 auto'}}>
           <Icon name="plus" size={15}/> הוסף מוצר חופשי
         </button>
+        <label className="btn btn--ghost" style={{flex:'0 0 auto', cursor:'pointer'}}>
+          <Icon name="download" size={15}/> ייבוא מאקסל
+          <input ref={excelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onExcelChange}/>
+        </label>
       </div>
       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginTop:4}}>
         <div style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)', letterSpacing:'.04em', textTransform:'uppercase'}}>
@@ -320,6 +403,72 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
           );
         })}
       </div>
+      {/* Excel format guide + preview */}
+      <div className="card" style={{padding:14, display:'flex', flexDirection:'column', gap:10}}>
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8}}>
+          <div style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>פורמט קובץ אקסל לייבוא</div>
+          <button className="btn btn--ghost btn--sm" onClick={downloadExcelTemplate} style={{fontSize:11}}>
+            <Icon name="download" size={13}/> הורד תבנית
+          </button>
+        </div>
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%', borderCollapse:'collapse', fontSize:12, fontFamily:'var(--font-ui)'}}>
+            <thead>
+              <tr style={{background:'var(--bg-2)'}}>
+                {EXCEL_COLS.map(c => (
+                  <th key={c.key} style={{padding:'6px 10px', textAlign:'right', borderBottom:'1px solid var(--line)', whiteSpace:'nowrap', color: c.required ? 'var(--ink)' : 'var(--ink-3)', fontWeight: c.required ? 600 : 400}}>
+                    {c.key}{c.required && <span style={{color:'var(--bad)', marginRight:2}}>*</span>}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {EXCEL_COLS.map(c => (
+                  <td key={c.key} style={{padding:'5px 10px', color:'var(--ink-3)', borderBottom:'1px solid var(--line)', whiteSpace:'nowrap', fontSize:11}}>{c.note}</td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {excelError && <div style={{font:'500 12px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:5}}><Icon name="alert" size={12}/>{excelError}</div>}
+        {excelRows && (
+          <div style={{display:'flex', flexDirection:'column', gap:8, marginTop:4}}>
+            <div style={{font:'500 12px var(--font-ui)', color:'var(--ink-2)'}}>
+              נטענו {excelRows.length} שורות מתוך <span className="mono" style={{fontSize:11}}>{excelFileName}</span>
+            </div>
+            <div style={{overflowX:'auto', maxHeight:180, overflowY:'auto', border:'1px solid var(--line)', borderRadius:6}}>
+              <table style={{width:'100%', borderCollapse:'collapse', fontSize:12, fontFamily:'var(--font-ui)'}}>
+                <thead style={{position:'sticky', top:0, background:'var(--bg-2)'}}>
+                  <tr>
+                    {EXCEL_COLS.map(c => (
+                      <th key={c.key} style={{padding:'5px 10px', textAlign:'right', borderBottom:'1px solid var(--line)', whiteSpace:'nowrap', fontWeight:500, color:'var(--ink-2)'}}>{c.key}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {excelRows.map((r, i) => (
+                    <tr key={i} style={{background: i % 2 === 0 ? 'var(--surface)' : 'var(--bg-2)'}}>
+                      {EXCEL_COLS.map(c => (
+                        <td key={c.key} style={{padding:'5px 10px', borderBottom:'1px solid var(--line)', whiteSpace:'nowrap', color:'var(--ink)'}}>{String(r[c.key] ?? '')}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{display:'flex', gap:8}}>
+              <button className="btn btn--accent" onClick={applyExcel} style={{flex:1, justifyContent:'center'}}>
+                <Icon name="check" size={14}/> טען {excelRows.length} שורות לטופס
+              </button>
+              <button className="btn btn--ghost btn--sm" onClick={() => { setExcelRows(null); setExcelFileName(''); }}>
+                <Icon name="x" size={13}/>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Image upload */}
       <div className="card" style={{padding:14, display:'flex', flexDirection:'column', gap:10}}>
         <div style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>תמונה מהדיווח · אופציונלי</div>
@@ -376,8 +525,9 @@ function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalo
       </div>
       <div>
         <label className="label">מוצר</label>
-        {isFree && !line.product.name ? (
-          <input className="input" autoFocus placeholder="הקלד שם מוצר חופשי…" maxLength={80}
+        {isFree ? (
+          <input className="input" autoFocus={!line.product.name} placeholder="הקלד שם מוצר חופשי…" maxLength={80}
+            value={line.product.name || ''}
             onChange={e => onChange({ product: { kind: 'free', name: e.target.value } })}/>
         ) : (
           <ProductCombobox value={line.product} products={PRODUCTS} categories={CATEGORIES}
@@ -399,8 +549,8 @@ function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalo
         <div>
           <label className="label">מלאי נוכחי</label>
           <div style={{position:'relative'}}>
-            <input type="number" min="0" step="0.01" className="input num-input" value={line.current_stock}
-              onChange={e => onChange({ current_stock: e.target.value })} placeholder="0.00"
+            <input type="number" min="0" step="1" className="input num-input" value={line.current_stock}
+              onChange={e => onChange({ current_stock: e.target.value })} placeholder="0"
               style={{paddingInlineEnd: unit || isFree ? 56 : 12}}/>
             <UnitBadge unit={unit} allowedUnits={allowedUnits} onChangeUnit={(u) => onChange({ unit: u })}/>
           </div>
@@ -409,11 +559,12 @@ function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalo
         <div>
           <label className="label">מלאי בדרך</label>
           <div style={{position:'relative'}}>
-            <input type="number" min="0" step="0.01" className="input num-input" value={line.incoming_stock}
-              onChange={e => onChange({ incoming_stock: e.target.value })} placeholder="0.00"
+            <input type="number" min="0" step="1" className="input num-input" value={line.incoming_stock}
+              onChange={e => onChange({ incoming_stock: e.target.value })} placeholder="0"
               style={{paddingInlineEnd: unit || isFree ? 56 : 12}}/>
             <UnitBadge unit={unit} allowedUnits={allowedUnits} onChangeUnit={(u) => onChange({ unit: u })}/>
           </div>
+          {errors[line.key + ':incoming'] && <ErrorLabel text={errors[line.key + ':incoming']}/>}
         </div>
       </div>
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
@@ -432,7 +583,7 @@ function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalo
       </div>
       <div>
         <label className="label">תאריך הגעה משוער · אופציונלי</label>
-        <input type="date" className="input" value={line.expected_arrival_date} onChange={e => onChange({ expected_arrival_date: e.target.value })}/>
+        <input type="date" className="input" value={line.expected_arrival_date} min={new Date().toISOString().split('T')[0]} onChange={e => onChange({ expected_arrival_date: e.target.value })}/>
       </div>
       <div>
         <label className="label">הערות</label>

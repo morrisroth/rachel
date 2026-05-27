@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   dbFetchOrganizations, dbFetchUsers, dbLogin,
   dbFetchHistory, dbInsertReport, dbFetchNotifications,
+  dbFetchAppSettings, dbSendEmail,
 } from './data.js';
 import { Icon, Crest } from './components.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakButton } from './tweaks-panel.jsx';
@@ -26,13 +27,22 @@ export function App() {
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
-    Promise.all([dbFetchOrganizations(), dbFetchUsers()])
-      .then(([orgsData, usersData]) => {
+    Promise.all([dbFetchOrganizations(), dbFetchUsers(), dbFetchAppSettings()])
+      .then(([orgsData, usersData, settings]) => {
         setOrgs(orgsData);
         setUsers(usersData);
+        if (settings.national) setNational(settings.national);
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(async () => {
+      const settings = await dbFetchAppSettings();
+      if (settings.national) setNational(settings.national);
+    }, 30000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => setNational(t.national), [t.national]);
@@ -61,6 +71,34 @@ export function App() {
     await dbInsertReport(payload);
     const hist = await dbFetchHistory(payload.organization_id);
     setHistory(hist);
+    if (session?.email) {
+      const org = orgs.find(o => o.id === session.organization_id);
+      const now = new Date().toLocaleString('he-IL', { dateStyle:'short', timeStyle:'short' });
+      dbSendEmail({
+        to: session.email,
+        subject: '✓ הדיווח התקבל — מערכת רחל',
+        html: `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"></head><body style="margin:0;padding:20px;background:#f5f5f5;font-family:Arial,sans-serif">
+<div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.1)">
+  <div style="background:linear-gradient(135deg,#1a6b3a,#145530);padding:28px 32px">
+    <div style="color:rgba(255,255,255,.7);font-size:13px;margin-bottom:6px">מערכת רחל — דיווח מלאי לאומי</div>
+    <h1 style="color:white;margin:0;font-size:22px">✓ הדיווח התקבל בהצלחה</h1>
+  </div>
+  <div style="padding:28px 32px">
+    <p style="font-size:16px;color:#333">שלום ${session.full_name},</p>
+    <p style="font-size:15px;color:#555">הדיווח עבור <strong>${org?.name || ''}</strong> התקבל ונרשם במערכת.</p>
+    <div style="background:#f0f7f0;border:1px solid #c3e6c3;border-radius:8px;padding:16px 20px;margin:20px 0">
+      <table width="100%" style="border-collapse:collapse;font-size:14px">
+        <tr><td style="color:#666;padding:4px 0">ארגון:</td><td style="font-weight:bold;text-align:left">${org?.name || ''}</td></tr>
+        <tr><td style="color:#666;padding:4px 0">תאריך ושעה:</td><td style="font-weight:bold;text-align:left">${now}</td></tr>
+        <tr><td style="color:#666;padding:4px 0">מספר פריטים:</td><td style="font-weight:bold;text-align:left">${payload.lines?.length || 0}</td></tr>
+      </table>
+    </div>
+    <p style="font-size:14px;color:#777">תודה על הדיווח בזמן. הנתונים שלך מסייעים לתמונת המצב הלאומית.</p>
+    <div style="margin-top:24px;padding-top:20px;border-top:1px solid #eee;text-align:center;color:#aaa;font-size:12px">מערכת רחל — מטה החירום הלאומי</div>
+  </div>
+</div></body></html>`,
+      }).catch(() => {});
+    }
   }
 
   if (loading) {
@@ -194,32 +232,6 @@ function FieldLogin({ users, onLogin }) {
             </button>
           </form>
 
-          {/* Quick pick */}
-          {fieldUsers.length > 0 && (
-            <>
-              <div style={{margin:'0 26px', height:1, background:'var(--line)'}}/>
-              <div style={{padding:'16px 26px 24px', display:'flex', flexDirection:'column', gap:9}}>
-                <div style={{font:'600 10px var(--font-ui)', letterSpacing:'.09em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:2}}>
-                  כניסה מהירה — דמו
-                </div>
-                {fieldUsers.map(u => (
-                  <button key={u.id} onClick={() => quickPick(u)} disabled={busy}
-                    style={{appearance:'none', background:'var(--bg)', border:'1px solid var(--line)', borderRadius:11, padding:'11px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:12, textAlign:'right', width:'100%', font:'inherit', transition:'all .12s'}}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.background='var(--accent-bg)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor='var(--line)'; e.currentTarget.style.background='var(--bg)'; }}>
-                    <div style={{width:36, height:36, borderRadius:9, background:'var(--bg-2)', border:'1px solid var(--line)', display:'grid', placeItems:'center', font:'700 13px var(--font-mono)', color:'var(--ink-2)', flexShrink:0}}>
-                      {u.full_name.split(' ').map(s=>s[0]).join('').slice(0,2)}
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{font:'600 14px var(--font-ui)', color:'var(--ink)'}}>{u.full_name}</div>
-                      <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{u.title}</div>
-                    </div>
-                    <Icon name="arrow-l" size={14} style={{color:'var(--ink-3)', flexShrink:0}}/>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
         </div>
       </div>
 

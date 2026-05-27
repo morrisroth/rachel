@@ -3,6 +3,7 @@ import {
   dbFetchOrganizations, dbFetchUsers, dbLogin,
   dbFetchMonitor,
   dbInsertOrganization, dbUpdateOrganization,
+  dbFetchAppSettings, dbSaveAppSetting,
 } from './data.js';
 import { Icon, Crest } from './components.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakButton } from './tweaks-panel.jsx';
@@ -25,10 +26,11 @@ export function AppHQ() {
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
-    Promise.all([dbFetchOrganizations(), dbFetchUsers()])
-      .then(([orgsData, usersData]) => {
+    Promise.all([dbFetchOrganizations(), dbFetchUsers(), dbFetchAppSettings()])
+      .then(([orgsData, usersData, settings]) => {
         setOrgs(orgsData);
         setUsers(usersData);
+        if (settings.national) { setNational(settings.national); setTweak('national', settings.national); }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -86,7 +88,7 @@ export function AppHQ() {
     <>
       <HQShell user={session} onLogout={logout}
                mode={national}
-               onSetMode={(m) => { setNational(m); setTweak('national', m); }}
+               onSetMode={async (m) => { setNational(m); setTweak('national', m); await dbSaveAppSetting('national', m); }}
                orgs={orgs} users={users}
                monitor={monitor}
                onRefreshMonitor={refreshMonitor}
@@ -172,31 +174,6 @@ function HQLogin({ users, onLogin }) {
               </div>
             ))}
           </div>
-
-          {/* Quick pick */}
-          {hqUsers.length > 0 && (
-            <div style={{display:'flex', flexDirection:'column', gap:9}}>
-              <div style={{height:1, background:'var(--line)'}}/>
-              <div style={{font:'600 10px var(--font-ui)', letterSpacing:'.09em', textTransform:'uppercase', color:'var(--ink-3)', marginBottom:2, marginTop:4}}>
-                כניסה מהירה — דמו
-              </div>
-              {hqUsers.map(u => (
-                <button key={u.id} onClick={() => quickPick(u)} disabled={busy}
-                  style={{appearance:'none', background:'var(--bg)', border:'1px solid var(--line)', borderRadius:11, padding:'11px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:12, textAlign:'right', width:'100%', font:'inherit', transition:'all .12s'}}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.background='var(--accent-bg)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor='var(--line)'; e.currentTarget.style.background='var(--bg)'; }}>
-                  <div style={{width:36, height:36, borderRadius:9, background:'var(--bg-2)', border:'1px solid var(--line)', display:'grid', placeItems:'center', font:'700 13px var(--font-mono)', color:'var(--ink-2)', flexShrink:0}}>
-                    {u.full_name.split(' ').map(s=>s[0]).join('').slice(0,2)}
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{font:'600 14px var(--font-ui)', color:'var(--ink)'}}>{u.full_name}</div>
-                    <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)', marginTop:1}}>{u.title}</div>
-                  </div>
-                  <Icon name="arrow-l" size={14} style={{color:'var(--ink-3)', flexShrink:0}}/>
-                </button>
-              ))}
-            </div>
-          )}
 
           <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>
             נציגי שטח?{' '}

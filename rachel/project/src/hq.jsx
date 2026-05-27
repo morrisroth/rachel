@@ -946,6 +946,26 @@ function EmailView({ user, orgs, users }) {
 function ModeView({ mode, onSetMode }) {
   const [pending, setPending] = useState(mode);
   const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { setPending(mode); }, [mode]);
+
+  async function doApply() {
+    setSaving(true);
+    setSaveErr('');
+    setSaved(false);
+    try {
+      await onSetMode(pending);
+      setConfirming(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch(e) {
+      setSaveErr('שגיאה בשמירה: ' + (e?.message || e));
+    }
+    setSaving(false);
+  }
 
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:780}}>
@@ -969,8 +989,20 @@ function ModeView({ mode, onSetMode }) {
       </div>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>שינוי המצב מעדכן באופן מיידי את תדירות הדיווח.</div>
-        <button className="btn btn--accent" disabled={pending === mode} onClick={() => setConfirming(true)}>החל שינוי</button>
+        <button className="btn btn--accent" disabled={pending === mode || saving} onClick={() => setConfirming(true)}>החל שינוי</button>
       </div>
+      {saved && (
+        <div className="banner banner--ok anim-in">
+          <Icon name="check" size={18} stroke={2.2}/>
+          <div style={{font:'500 14px var(--font-ui)'}}>המצב הלאומי עודכן ונשמר בהצלחה.</div>
+        </div>
+      )}
+      {saveErr && (
+        <div className="banner banner--bad anim-in">
+          <Icon name="alert" size={18} stroke={2.2}/>
+          <div style={{font:'500 14px var(--font-ui)'}}>{saveErr}</div>
+        </div>
+      )}
       {confirming && (
         <div className="card anim-in" style={{padding:18, borderColor:'var(--warn-line)', background:'var(--warn-bg)'}}>
           <div style={{display:'flex', gap:12, alignItems:'flex-start'}}>
@@ -978,8 +1010,10 @@ function ModeView({ mode, onSetMode }) {
             <div style={{flex:1}}>
               <div style={{font:'600 14px var(--font-ui)', color:'var(--warn)'}}>אישור החלפת מצב לאומי ל-«{pending === 'emergency' ? 'חירום' : 'שגרה'}»</div>
               <div style={{display:'flex', gap:8, marginTop:14}}>
-                <button className="btn btn--accent btn--sm" onClick={() => { onSetMode(pending); setConfirming(false); }}>אישור והחלה</button>
-                <button className="btn btn--ghost btn--sm" onClick={() => setConfirming(false)}>ביטול</button>
+                <button className="btn btn--accent btn--sm" disabled={saving} onClick={doApply}>
+                  {saving ? 'שומר…' : 'אישור והחלה'}
+                </button>
+                <button className="btn btn--ghost btn--sm" disabled={saving} onClick={() => setConfirming(false)}>ביטול</button>
               </div>
             </div>
           </div>

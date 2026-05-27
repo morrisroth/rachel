@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { CATEGORIES, PRODUCTS, ORG_TYPES } from './data.js';
+import { CATEGORIES, PRODUCTS, ORG_TYPES, dbUpdateUser } from './data.js';
 import { Icon, Kpi, PageHeader } from './components.jsx';
 
 export function OrgsView({ orgs, users, onAdd, onUpdate }) {
@@ -223,6 +223,7 @@ function OrgDrawer({ title, org, owner, editing = false, onClose, onSubmit, onTo
   const [phone, setPhone]             = useState(owner?.phone || '');
   const [password, setPassword]       = useState(owner?.password || '');
   const [contactTitle, setContactTitle] = useState(owner?.title || '');
+  const [email, setEmail]             = useState(owner?.email || '');
   const [linkedIds, setLinkedIds] = useState(org?.linked_products || []);
   const [productSearch, setProductSearch] = useState('');
   const [errors, setErrors] = useState({});
@@ -256,11 +257,14 @@ function OrgDrawer({ title, org, owner, editing = false, onClose, onSubmit, onTo
     setErrors(e);
     if (Object.keys(e).length > 0) return;
     if (editing) {
+      if (owner?.id && email !== (owner.email || '')) {
+        dbUpdateUser(owner.id, { email: email.trim() || null });
+      }
       onSubmit({ org: { name: name.trim(), type, cat_id: catId, linked_products: linkedIds } });
     } else {
       onSubmit({
         org: { name: name.trim(), type, cat_id: catId, linked_products: linkedIds },
-        user: { full_name: contactName.trim(), id_number: idNumber, phone, password, title: contactTitle.trim() || `נציג שטח — ${name.trim()}`, active: true },
+        user: { full_name: contactName.trim(), id_number: idNumber, phone, password, email: email.trim() || null, title: contactTitle.trim() || `נציג שטח — ${name.trim()}` },
       });
     }
   }
@@ -298,6 +302,16 @@ function OrgDrawer({ title, org, owner, editing = false, onClose, onSubmit, onTo
             </FormGrid>
           </FormSection>
 
+          {editing && (
+            <FormSection num="02" title="כתובת מייל איש קשר">
+              <FormGrid>
+                <Field label="כתובת מייל" full>
+                  <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="contact@company.com"/>
+                </Field>
+              </FormGrid>
+            </FormSection>
+          )}
+
           {!editing && (
             <FormSection num="02" title="משתמש שטח ראשי">
               <FormGrid>
@@ -314,8 +328,11 @@ function OrgDrawer({ title, org, owner, editing = false, onClose, onSubmit, onTo
                 <Field label="טלפון נייד">
                   <input className="input" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="050-1234567"/>
                 </Field>
-                <Field label="סיסמה ראשונית" error={errors.password} full>
+                <Field label="סיסמה ראשונית" error={errors.password}>
                   <input className="input" type="text" value={password} onChange={e => setPassword(e.target.value)} placeholder="לפחות 4 תווים"/>
+                </Field>
+                <Field label="כתובת מייל" full>
+                  <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="contact@company.com"/>
                 </Field>
               </FormGrid>
             </FormSection>

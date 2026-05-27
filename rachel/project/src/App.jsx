@@ -4,7 +4,7 @@ import {
   dbFetchHistory, dbInsertReport, dbFetchNotifications,
   dbFetchAppSettings, dbSendEmail,
 } from './data.js';
-import { Icon, Crest } from './components.jsx';
+import { Icon, Crest, ModePill } from './components.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakButton } from './tweaks-panel.jsx';
 import { FieldShell } from './field.jsx';
 
@@ -170,43 +170,41 @@ function FieldLogin({ users, onLogin }) {
   const fieldUsers = users.filter(u => u.role === 'FIELD_USER' && u.id <= 22);
 
   return (
-    <div style={{
-      minHeight: '100dvh',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: '32px 20px',
-      background: `
-        radial-gradient(ellipse 120% 50% at 50% -5%, oklch(92% 0.035 250 / .25), transparent 55%),
-        radial-gradient(ellipse 80% 40% at 10% 100%, oklch(94% 0.025 150 / .15), transparent 55%),
-        oklch(98% 0.008 80)`,
-    }}>
-      {/* Brand */}
-      <div style={{marginBottom:28, display:'flex', flexDirection:'column', alignItems:'center', gap:8}}>
-        <Crest subtitle="רחל · מערכת דיווח שטח"/>
-      </div>
-
-      {/* Card */}
-      <div style={{width:'100%', maxWidth:400, borderRadius:22, overflow:'hidden', boxShadow:'0 4px 6px oklch(0% 0 0 / .04), 0 20px 60px oklch(0% 0 0 / .10)', border:'1px solid var(--line)'}}>
-
-        {/* Top strip */}
-        <div style={{background:'linear-gradient(135deg, oklch(52% 0.16 250), oklch(44% 0.14 260))', padding:'24px 26px', display:'flex', alignItems:'center', gap:16}}>
-          <div style={{width:50, height:50, borderRadius:14, background:'oklch(100% 0 0 / .18)', display:'grid', placeItems:'center', flexShrink:0}}>
-            <Icon name="home" size={23} stroke={1.8} style={{color:'white'}}/>
-          </div>
-          <div>
-            <div style={{font:'700 20px var(--font-ui)', color:'white'}}>ברוכים הבאים, נציגי השטח</div>
-            <div style={{font:'400 13px var(--font-ui)', color:'oklch(100% 0 0 / .72)', marginTop:2}}>
-              מלאו את דיווח המלאי היומי עבור הארגון שלכם
-            </div>
-          </div>
+    <div className="phone-stage">
+      <div className="phone">
+        {/* Status bar */}
+        <div className="phone-status">
+          <span className="mono" style={{fontWeight:600}}>9:41</span>
+          <span style={{display:'flex', gap:6, alignItems:'center', fontSize:12, color:'var(--ink-3)'}}>
+            <span className="mono" style={{fontSize:11}}>LTE</span>
+            <span style={{display:'inline-block', width:18, height:9, border:'1px solid currentColor', borderRadius:2, position:'relative'}}>
+              <span style={{position:'absolute', inset:1, background:'currentColor', borderRadius:1, width:'72%'}}/>
+            </span>
+          </span>
         </div>
 
-        {/* Form body */}
-        <div style={{background:'var(--surface)'}}>
-          <form onSubmit={submit} style={{padding:'24px 26px', display:'flex', flexDirection:'column', gap:14}}>
+        <div className="phone-body" style={{display:'flex', flexDirection:'column', overflow:'auto', padding:'14px 22px 0'}}>
+          {/* Header */}
+          <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:28, paddingBottom:12, borderBottom:'1px solid var(--ink)'}}>
+            <Crest subtitle="דיווח שטח"/>
+            <ModePill mode="emergency"/>
+          </div>
+
+          {/* Hero */}
+          <div style={{marginBottom:24}}>
+            <div className="tag" style={{color:'var(--brand)'}}>01 · כניסה</div>
+            <h1 style={{margin:'10px 0 4px', font:'800 30px/1.05 var(--font-ui)', letterSpacing:'-.02em'}}>שלום, נציג השטח</h1>
+            <p style={{margin:0, font:'400 14px/1.4 var(--font-ui)', color:'var(--ink-3)'}}>
+              דווח את מלאי הארגון. הנתונים נכנסים מיידית לתמונת המצב הלאומית.
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={submit} style={{display:'flex', flexDirection:'column', gap:14}}>
             <div>
               <label className="label">מספר תעודת זהות</label>
               <div style={{position:'relative'}}>
-                <Icon name="user" size={15} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
+                <Icon name="user" size={14} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
                 <input className="input num-input" inputMode="numeric" maxLength={9}
                   value={id} onChange={e => setId(e.target.value.replace(/\D/g,''))}
                   placeholder="9 ספרות" style={{paddingInlineStart:38}}/>
@@ -215,29 +213,34 @@ function FieldLogin({ users, onLogin }) {
             <div>
               <label className="label">סיסמה</label>
               <div style={{position:'relative'}}>
-                <Icon name="lock" size={15} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
+                <Icon name="lock" size={14} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
                 <input className="input" type="password"
                   value={pw} onChange={e => setPw(e.target.value)}
                   placeholder="••••" style={{paddingInlineStart:38}}/>
               </div>
             </div>
             {err && (
-              <div style={{font:'500 13px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:7, padding:'10px 13px', background:'var(--bad-bg)', border:'1px solid var(--bad-line)', borderRadius:9}}>
+              <div style={{font:'500 13px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:7, padding:'10px 13px', background:'var(--bad-bg)', border:'1px solid var(--bad-line)', borderRadius:'var(--r-1)'}}>
                 <Icon name="alert" size={13}/> {err}
               </div>
             )}
-            <button type="submit" disabled={busy}
-              style={{appearance:'none', border:0, cursor:'pointer', background:'linear-gradient(135deg, oklch(52% 0.16 250), oklch(44% 0.14 260))', color:'white', padding:'13px', borderRadius:11, font:'600 15px var(--font-ui)', marginTop:2, transition:'opacity .1s', opacity: busy ? .6 : 1}}>
-              {busy ? 'מתחבר…' : 'כניסה לדיווח'}
+            <button type="submit" disabled={busy} className="btn btn--brand btn--lg"
+              style={{width:'100%', justifyContent:'space-between', marginTop:4, opacity: busy ? .6 : 1}}>
+              <span>{busy ? 'מתחבר…' : 'כניסה לדיווח'}</span>
+              {!busy && <Icon name="arrow-l" size={16}/>}
             </button>
           </form>
 
+          <div style={{marginTop:20, paddingTop:14, borderTop:'1px solid var(--hairline)', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
+            <span style={{font:'500 11px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.06em', textTransform:'uppercase'}}>HQ_USER?</span>
+            <a href="/hq.html" style={{font:'600 12px var(--font-ui)', color:'var(--brand)', textDecoration:'none'}}>לחמ״ל המרכזי ←</a>
+          </div>
         </div>
-      </div>
 
-      <div style={{marginTop:22, font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>
-        אנשי מטה?{' '}
-        <a href="/hq.html" style={{color:'var(--accent)', textDecoration:'none', fontWeight:500}}>כניסה לחמ״ל ←</a>
+        {/* Home indicator */}
+        <div style={{display:'flex', justifyContent:'center', padding:'8px 0 10px', flexShrink:0}}>
+          <div style={{width:120, height:4, background:'var(--ink)', borderRadius:2}}/>
+        </div>
       </div>
     </div>
   );

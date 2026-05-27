@@ -1,0 +1,99 @@
+/*  Rachel — "Operational Command" theme
+    Drop-in replacement for the `:root { ... }` block in `rachel/project/index.html`.
+
+    HOW TO USE:
+    1. Open `rachel/project/index.html`
+    2. Find the existing `:root { --bg: ...; --ink: ...; ... }` block
+    3. Replace it entirely with the contents below
+    4. Save. The whole app will re-theme.
+
+    The old token names (`--bg`, `--bg-2`, `--ink`, `--accent`) are kept as
+    backwards-compatible aliases so existing inline styles keep working.
+*/
+
+:root {
+  /* ── Paper / surface — warm neutral ──────────────────────── */
+  --paper:     oklch(96% 0.010 80);
+  --paper-2:   oklch(93.5% 0.012 80);
+  --surface:   oklch(99% 0.005 80);
+  --surface-2: oklch(97.5% 0.008 80);
+
+  /* Backwards-compat aliases (used by existing inline styles) */
+  --bg:        var(--paper);
+  --bg-2:      var(--paper-2);
+
+  /* ── Ink — text & lines, warm ────────────────────────────── */
+  --ink:       oklch(20% 0.012 80);
+  --ink-2:     oklch(38% 0.012 80);
+  --ink-3:     oklch(56% 0.012 80);
+  --ink-4:     oklch(72% 0.012 80);
+  --line:      oklch(86% 0.010 80);
+  --line-2:    oklch(78% 0.012 80);
+  --hairline:  oklch(91% 0.010 80);
+
+  /* ── Single structural accent: operational green ─────────── */
+  --brand:      oklch(38% 0.08 165);
+  --brand-2:    oklch(32% 0.08 165);
+  --brand-bg:   oklch(94% 0.030 165);
+  --brand-line: oklch(80% 0.060 165);
+
+  /* Backwards-compat alias — many existing styles reference --accent */
+  --accent:     var(--brand);
+  --accent-bg:  var(--brand-bg);
+
+  /* ── Status (criticality only) ───────────────────────────── */
+  --ok:        oklch(48% 0.12 155);
+  --ok-bg:     oklch(95% 0.035 155);
+  --ok-line:   oklch(82% 0.070 155);
+
+  --warn:      oklch(60% 0.14 65);
+  --warn-bg:   oklch(96% 0.060 70);
+  --warn-line: oklch(82% 0.110 70);
+
+  --bad:       oklch(52% 0.18 28);
+  --bad-bg:    oklch(96% 0.040 28);
+  --bad-line:  oklch(82% 0.100 28);
+
+  /* ── Radii — restrained ──────────────────────────────────── */
+  --radius:     4px;     /* inputs, chips */
+  --radius-lg:  8px;     /* cards, panels */
+  --r-1:        4px;
+  --r-2:        8px;
+  --r-3:        12px;    /* modals */
+
+  /* ── Type ────────────────────────────────────────────────── */
+  --font-ui:   'Heebo', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* ── Shadows — only modals/drawers ───────────────────────── */
+  --shadow-1: 0 1px 0 oklch(100% 0 0 / .5) inset, 0 1px 2px oklch(0% 0 0 / .04);
+  --shadow-2: 0 1px 0 oklch(100% 0 0 / .5) inset, 0 8px 24px oklch(0% 0 0 / .06);
+  --shadow-modal: 0 24px 60px oklch(0% 0 0 / .18), 0 6px 16px oklch(0% 0 0 / .08);
+}
+
+/* ── Dark mode override ──────────────────────────────────────
+   The existing app toggles `body.dark` from the Tweaks panel.
+   Keep the same hook; just provide darker token values.
+*/
+body.dark {
+  --paper:     oklch(20% 0.012 80);
+  --paper-2:   oklch(23% 0.012 80);
+  --surface:   oklch(25% 0.012 80);
+  --surface-2: oklch(27% 0.012 80);
+  --line:      oklch(32% 0.012 80);
+  --line-2:    oklch(38% 0.012 80);
+  --hairline:  oklch(28% 0.012 80);
+  --ink:       oklch(95% 0.008 80);
+  --ink-2:     oklch(78% 0.010 80);
+  --ink-3:     oklch(60% 0.010 80);
+  --ink-4:     oklch(48% 0.010 80);
+
+  --brand-bg:  oklch(28% 0.04 165);
+  --ok-bg:     oklch(30% 0.05 155);
+  --warn-bg:   oklch(30% 0.05 70);
+  --bad-bg:    oklch(30% 0.05 28);
+
+  --bg:        var(--paper);
+  --bg-2:      var(--paper-2);
+  --accent-bg: var(--brand-bg);
+}

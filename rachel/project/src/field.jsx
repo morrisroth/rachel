@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { PRODUCTS, CATEGORIES, INCOMING_STATUSES, QUALITY_STATUSES, ALL_UNITS, dbUploadReportImage } from './data.js';
-import { Icon, Crest, StatusBlock, ProductCombobox, formatDate, relTime, reportIsWithin24h } from './components.jsx';
+import { Icon, Crest, ModePill, StatusBlock, ProductCombobox, formatDate, relTime, reportIsWithin24h } from './components.jsx';
 
 function emptyLine() {
   return {
@@ -102,11 +102,11 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
   const orgName = org?.name || '';
 
   const notifBanner = notifications.length > 0 && (
-    <div style={{padding:'10px 16px', display:'flex', flexDirection:'column', gap:8, background:'oklch(96% 0.04 250)', borderBottom:'1px solid oklch(82% 0.06 250)'}}>
+    <div style={{padding:'10px 16px', display:'flex', flexDirection:'column', gap:8, background:'var(--brand-bg)', borderBottom:'1px solid var(--brand-line)'}}>
       {notifications.slice(0, 3).map(n => (
         <div key={n.id} style={{display:'flex', alignItems:'flex-start', gap:10}}>
-          <Icon name="bell" size={14} style={{color:'var(--accent)', flexShrink:0, marginTop:2}}/>
-          <div style={{font:'500 13px var(--font-ui)', color:'oklch(30% 0.10 250)', flex:1}}>{n.message}</div>
+          <Icon name="bell" size={14} style={{color:'var(--brand)', flexShrink:0, marginTop:2}}/>
+          <div style={{font:'500 13px var(--font-ui)', color:'var(--brand-2)', flex:1}}>{n.message}</div>
         </div>
       ))}
     </div>
@@ -145,27 +145,25 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
   if (isPc) {
     return (
       <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)', position:'relative'}}>
-        <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 32px', background:'var(--surface)', borderBottom:'1px solid var(--line)', gap:24}}>
+        <header className="topbar" style={{padding:'0 32px', height:56}}>
           <div style={{display:'flex', alignItems:'center', gap:18}}>
             <Crest subtitle={`נציג שטח · ${orgName}`}/>
-            <div style={{width:1, height:24, background:'var(--line)'}}/>
-            <span className="chip" style={{fontSize:11}}>
-              <span className="dot" style={{background: mode === 'emergency' ? 'var(--bad)' : 'var(--ok)'}}/>
-              {mode === 'emergency' ? 'מצב חירום ארצי · דיווח יומי' : 'שגרה · דיווח שבועי'}
-            </span>
+            <div style={{width:1, height:22, background:'var(--line-2)'}}/>
+            <nav className="topbar" style={{height:'auto', border:0, padding:0, background:'transparent'}}>
+              {navItems.map(t => (
+                <a key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}
+                  style={{display:'flex', alignItems:'center', gap:7, position:'relative'}}>
+                  <Icon name={t.icon} size={14}/>{t.label}
+                  {t.badge && tab !== t.id && <span style={{position:'absolute', top:3, insetInlineEnd:3, width:6, height:6, borderRadius:'50%', background:'var(--bad)'}}/>}
+                </a>
+              ))}
+            </nav>
           </div>
-          <nav style={{display:'flex', gap:2}}>
-            {navItems.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{appearance:'none', border:0, cursor:'pointer', display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderRadius:6, background: tab === t.id ? 'var(--bg-2)' : 'transparent', color: tab === t.id ? 'var(--ink)' : 'var(--ink-2)', font:'500 14px var(--font-ui)', position:'relative'}}>
-                <Icon name={t.icon} size={15} stroke={tab === t.id ? 2 : 1.7}/>{t.label}
-                {t.badge && tab !== t.id && <span style={{width:7, height:7, borderRadius:'50%', background:'var(--bad)'}}/>}
-              </button>
-            ))}
-          </nav>
-          <div style={{display:'flex', alignItems:'center', gap:10}}>
-            <div style={{textAlign:'left'}}>
-              <div style={{font:'500 13px var(--font-ui)'}}>{user.full_name}</div>
+          <div style={{display:'flex', alignItems:'center', gap:12}}>
+            <ModePill mode={mode}/>
+            <div style={{width:1, height:22, background:'var(--line-2)'}}/>
+            <div style={{lineHeight:1.2}}>
+              <div style={{font:'600 12.5px var(--font-ui)'}}>{user.full_name}</div>
               <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>ת״ז <span className="mono">{user.id_number}</span></div>
             </div>
             <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={14}/></button>
@@ -174,8 +172,8 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
         {notifBanner}
         {tabContent}
         {toast && (
-          <div className="anim-in" style={{position:'fixed', left:'50%', bottom:24, transform:'translateX(-50%)', padding:'12px 18px', background: toast.kind === 'ok' ? 'var(--ok)' : 'var(--bad)', color:'white', borderRadius:8, font:'500 14px var(--font-ui)', display:'flex', alignItems:'center', gap:10, boxShadow:'0 12px 32px oklch(0% 0 0 / .18)', zIndex:50}}>
-            <Icon name={toast.kind === 'ok' ? 'check' : 'alert'} size={16} stroke={2.4}/>{toast.text}
+          <div className="anim-in" style={{position:'fixed', left:'50%', bottom:24, transform:'translateX(-50%)', padding:'12px 18px', background:'var(--surface)', color:'var(--ink)', border:'1px solid var(--line)', borderRadius:8, font:'500 14px var(--font-ui)', display:'flex', alignItems:'center', gap:10, boxShadow:'var(--shadow-2)', zIndex:50}}>
+            <Icon name={toast.kind === 'ok' ? 'check' : 'alert'} size={16} stroke={2.4} style={{color: toast.kind === 'ok' ? 'var(--ok)' : 'var(--bad)'}}/>{toast.text}
           </div>
         )}
       </div>
@@ -185,13 +183,10 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
   // ── Phone — native full-screen on real mobile, framed on desktop ─────────
   const phoneInner = (
     <>
-      <div className="sec-h" style={{flexShrink:0, position:'sticky', top:0, zIndex:5}}>
-        <div><h2>{orgName}</h2><div className="sub">{user.title}</div></div>
-        <div style={{display:'flex', gap:6, alignItems:'center'}}>
-          <span className="chip" style={{fontSize:11}}>
-            <span className="dot" style={{background: mode === 'emergency' ? 'var(--bad)' : 'var(--ok)'}}/>
-            {mode === 'emergency' ? 'חירום' : 'שגרה'}
-          </span>
+      <div style={{flexShrink:0, position:'sticky', top:0, zIndex:5, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 16px', height:52, background:'var(--surface)', borderBottom:'1px solid var(--ink)'}}>
+        <Crest subtitle={orgName}/>
+        <div style={{display:'flex', alignItems:'center', gap:8}}>
+          <ModePill mode={mode}/>
           <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={14}/></button>
         </div>
       </div>
@@ -201,8 +196,8 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
       </div>
       {bottomNav}
       {toast && (
-        <div className="anim-in" style={{position:'fixed', left:16, right:16, bottom:80, padding:'12px 14px', background: toast.kind === 'ok' ? 'var(--ok)' : 'var(--bad)', color:'white', borderRadius:8, font:'500 14px var(--font-ui)', display:'flex', alignItems:'center', gap:10, boxShadow:'0 12px 32px oklch(0% 0 0 / .18)', zIndex:50}}>
-          <Icon name={toast.kind === 'ok' ? 'check' : 'alert'} size={16} stroke={2.4}/>{toast.text}
+        <div className="anim-in" style={{position:'fixed', left:16, right:16, bottom:80, padding:'12px 14px', background:'var(--surface)', color:'var(--ink)', border:'1px solid var(--line)', borderRadius:8, font:'500 14px var(--font-ui)', display:'flex', alignItems:'center', gap:10, boxShadow:'var(--shadow-2)', zIndex:50}}>
+          <Icon name={toast.kind === 'ok' ? 'check' : 'alert'} size={16} stroke={2.4} style={{color: toast.kind === 'ok' ? 'var(--ok)' : 'var(--bad)'}}/>{toast.text}
         </div>
       )}
     </>

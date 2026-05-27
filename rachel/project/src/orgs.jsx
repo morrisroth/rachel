@@ -76,6 +76,7 @@ export function OrgsView({ orgs, users, onAdd, onUpdate }) {
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22}}>
       <PageHeader
+        tag="02 · ORGANIZATIONS"
         title="ניהול ארגונים"
         sub="הוספה, עריכה והשבתה של ארגונים מדווחים."
         right={

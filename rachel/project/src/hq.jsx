@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications, dbInsertReport, dbFetchAppSettings, dbSaveAppSetting, dbSendEmail, dbUpdateUser } from './data.js';
-import { Icon, Crest, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
+import { Icon, Crest, ModePill, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
 import { OrgsView } from './orgs.jsx';
 
 export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor, onRefreshMonitor, onAddOrganization, onUpdateOrganization }) {
@@ -16,9 +16,51 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
     setExportLog(prev => [{ id: Date.now(), user_id: user.id, type, at: Date.now() }, ...prev]);
   }
 
+  const initials = user.full_name.split(' ').map(s => s[0]).join('').slice(0, 2);
+  const navItems = [
+    { id:'monitor', icon:'home',     label:'ניטור' },
+    { id:'orgs',    icon:'user',     label:'ארגונים' },
+    { id:'export',  icon:'download', label:'ייצוא' },
+    { id:'notify',  icon:'bell',     label:'התראות' },
+    { id:'email',   icon:'mail',     label:'מיילים' },
+    { id:'mode',    icon:'shield',   label:'מצב לאומי' },
+    { id:'audit',   icon:'history',  label:'יומן' },
+  ];
+
   return (
-    <div className="hq-shell" style={{minHeight:'100vh'}}>
-      <main className="hq-main" style={{maxWidth:1280}}>
+    <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', background:'var(--paper)'}}>
+      {/* Top bar */}
+      <div className="topbar">
+        <div style={{display:'flex', alignItems:'center', gap:20}}>
+          <Crest subtitle="חמ״ל מרכזי" variant="brand"/>
+          <div style={{width:1, height:22, background:'var(--line-2)'}}/>
+          <nav className="topbar" style={{height:'auto', border:0, padding:0, background:'transparent', gap:0}}>
+            {navItems.map(n => (
+              <a key={n.id} className={tab === n.id ? 'on' : ''} onClick={() => setTab(n.id)}
+                style={{display:'flex', alignItems:'center', gap:7}}>
+                <Icon name={n.icon} size={14}/> {n.label}
+              </a>
+            ))}
+          </nav>
+        </div>
+        <div style={{display:'flex', alignItems:'center', gap:12}}>
+          <ModePill mode={mode}/>
+          <div style={{width:1, height:22, background:'var(--line-2)'}}/>
+          <div style={{display:'flex', alignItems:'center', gap:8}}>
+            <div style={{width:28, height:28, borderRadius:4, background:'var(--ink)', color:'var(--paper)', display:'grid', placeItems:'center', font:'700 11px var(--font-mono)', flexShrink:0}}>
+              {initials}
+            </div>
+            <div style={{lineHeight:1.2}}>
+              <div style={{font:'600 12.5px var(--font-ui)'}}>{user.full_name}</div>
+              <div style={{font:'500 10px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.08em', textTransform:'uppercase'}}>{user.title}</div>
+            </div>
+          </div>
+          <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={13}/></button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <main style={{flex:'1 1 auto', padding:'28px 32px 64px', maxWidth:1320, width:'100%', margin:'0 auto', boxSizing:'border-box'}}>
         {tab === 'monitor' && <MonitorView monitor={monitor} mode={mode} orgs={orgs} onRefresh={onRefreshMonitor}/>}
         {tab === 'orgs'    && <OrgsView orgs={orgs} users={users} onAdd={onAddOrganization} onUpdate={onUpdateOrganization}/>}
         {tab === 'export'  && <ExportView onExport={doExport} mode={mode} orgs={orgs} user={user}/>}
@@ -28,55 +70,6 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
         {tab === 'email'   && <EmailView user={user} orgs={orgs} users={users}/>}
         {tab === 'audit'   && <AuditView log={exportLog} users={users}/>}
       </main>
-
-      <aside className="hq-side">
-        <Crest subtitle="חמ״ל מרכזי"/>
-        <nav style={{display:'flex', flexDirection:'column', gap:2, marginTop:8}}>
-          {[
-            { id:'monitor', icon:'home',     label:'ניטור ארגונים' },
-            { id:'orgs',    icon:'user',     label:'ניהול ארגונים' },
-            { id:'export',  icon:'download', label:'ייצוא נתונים ארצי' },
-            { id:'notify',  icon:'bell',     label:'שליחת התראות' },
-            { id:'email',   icon:'mail',     label:'שליחת מיילים' },
-            { id:'mode',    icon:'shield',   label:'מצב לאומי' },
-            { id:'audit',   icon:'history',  label:'יומן ייצוא ופעולות' },
-          ].map(n => (
-            <button key={n.id} onClick={() => setTab(n.id)}
-              style={{appearance:'none', border:0, cursor:'pointer', display:'flex', alignItems:'center', gap:10, padding:'9px 11px', borderRadius:6, background: tab === n.id ? 'var(--bg-2)' : 'transparent', color: tab === n.id ? 'var(--ink)' : 'var(--ink-2)', font:'500 14px var(--font-ui)', textAlign:'right'}}>
-              <Icon name={n.icon} size={16}/> {n.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="hr" style={{margin:'4px 0'}}/>
-        <div className="card" style={{padding:12, display:'flex', flexDirection:'column', gap:8, background:'var(--bg-2)'}}>
-          <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-            <span style={{font:'600 11px var(--font-ui)', letterSpacing:'.06em', textTransform:'uppercase', color:'var(--ink-3)'}}>מצב לאומי</span>
-            <span className="chip" style={{fontSize:10, padding:'1px 7px'}}>
-              <span className="dot" style={{background: mode === 'emergency' ? 'var(--bad)' : 'var(--ok)'}}/>
-              {mode === 'emergency' ? 'חירום' : 'שגרה'}
-            </span>
-          </div>
-          <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-2)'}}>
-            תדירות דיווח: {mode === 'emergency' ? 'יומי (24ש׳)' : 'אחת ל-7 ימים'}
-          </div>
-          <button className="btn btn--ghost btn--sm" onClick={() => setTab('mode')}>שינוי מצב</button>
-        </div>
-
-        <div style={{marginTop:'auto', display:'flex', flexDirection:'column', gap:8}}>
-          <div className="hr"/>
-          <div style={{display:'flex', alignItems:'center', gap:10, padding:'6px 4px'}}>
-            <div style={{width:34, height:34, borderRadius:8, background:'var(--bg-2)', border:'1px solid var(--line)', display:'grid', placeItems:'center', font:'700 12px var(--font-mono)'}}>
-              {user.full_name.split(' ').map(s=>s[0]).join('').slice(0,2)}
-            </div>
-            <div style={{flex:1, minWidth:0}}>
-              <div style={{font:'500 13px var(--font-ui)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{user.full_name}</div>
-              <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{user.title}</div>
-            </div>
-            <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={13}/></button>
-          </div>
-        </div>
-      </aside>
     </div>
   );
 }
@@ -132,6 +125,7 @@ function MonitorView({ monitor, mode, orgs, onRefresh }) {
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22}}>
       <PageHeader
+        tag="01 · MONITOR"
         title="ניטור ארגונים"
         sub={`תמונת מצב ארצית · ${mode === 'emergency' ? 'תדירות יומית (חירום)' : 'תדירות שבועית (שגרה)'} · מתרענן כל 30 שניות`}
         right={<PillToggle value={filter} onChange={setFilter}
@@ -439,7 +433,7 @@ function ExportView({ onExport, mode, orgs, user }) {
 
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22}}>
-      <PageHeader title="ייצוא נתונים ארצי" sub="קובץ אקסל מנורמל, מפוצל לארבע מחיצות לפי משרדי הממשלה השותפים"/>
+      <PageHeader tag="03 · EXPORT" title="ייצוא נתונים ארצי" sub="קובץ אקסל מנורמל, מפוצל לארבע מחיצות לפי משרדי הממשלה השותפים"/>
 
       {/* Date range filter */}
       <div className="card" style={{padding:18, display:'flex', alignItems:'center', gap:18, flexWrap:'wrap'}}>
@@ -655,7 +649,7 @@ function NotifyView({ user, orgs, notifications, onSend }) {
 
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:780}}>
-      <PageHeader title="שליחת התראות לשטח" sub="הודעות יוצגו לנציגי השטח בעת כניסה לדיווח"/>
+      <PageHeader tag="04 · NOTIFY" title="שליחת התראות לשטח" sub="הודעות יוצגו לנציגי השטח בעת כניסה לדיווח"/>
 
       <div className="card" style={{padding:24, display:'flex', flexDirection:'column', gap:16}}>
         <div style={{display:'flex', flexDirection:'column', gap:8}}>
@@ -845,7 +839,7 @@ function EmailView({ user, orgs, users }) {
 
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:900}}>
-      <PageHeader title="שליחת מיילים לארגונים" sub={`נשלח מ־morisiusmoris@gmail.com · ניתן לערוך תבנית ולשלוח לכלל הארגונים או לחלקם`}/>
+      <PageHeader tag="05 · EMAIL" title="שליחת מיילים לארגונים" sub={`נשלח מ־morisiusmoris@gmail.com · ניתן לערוך תבנית ולשלוח לכלל הארגונים או לחלקם`}/>
 
       {/* Recipients */}
       <div className="card" style={{padding:20, display:'flex', flexDirection:'column', gap:14}}>
@@ -1059,7 +1053,7 @@ function ModeView({ mode, onSetMode, users }) {
 
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:780}}>
-      <PageHeader title="מצב לאומי והתראות" sub="בורר זה משפיע על תדירות חובת הדיווח של כלל הארגונים במשק."/>
+      <PageHeader tag="06 · MODE" title="מצב לאומי והתראות" sub="בורר זה משפיע על תדירות חובת הדיווח של כלל הארגונים במשק."/>
       <div className="card" style={{padding:0, overflow:'hidden'}}>
         {[
           { value:'routine',   label:'שגרה',  hint:'תדירות דיווח: אחת ל-7 ימים.', cls:'ok' },
@@ -1123,7 +1117,7 @@ function ModeView({ mode, onSetMode, users }) {
 function AuditView({ log, users }) {
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22}}>
-      <PageHeader title="יומן ייצוא ופעולות" sub="EXPORT_LOG — נרשם אוטומטית בכל הורדה."/>
+      <PageHeader tag="07 · AUDIT" title="יומן ייצוא ופעולות" sub="EXPORT_LOG — נרשם אוטומטית בכל הורדה."/>
       <div className="card" style={{overflow:'hidden'}}>
         <table className="tbl">
           <thead><tr><th style={{width:60}}>#</th><th>סוג ייצוא</th><th>משתמש מטה</th><th>תאריך ושעה</th></tr></thead>

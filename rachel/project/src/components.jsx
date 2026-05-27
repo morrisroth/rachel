@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 
-export const Icon = ({ name, size = 16, stroke = 1.7, ...rest }) => {
+export const Icon = ({ name, size = 16, stroke = 1.6, ...rest }) => {
   const s = size;
   const common = { width: s, height: s, viewBox: '0 0 24 24', fill: 'none',
                    stroke: 'currentColor', strokeWidth: stroke,
@@ -35,15 +35,24 @@ export const Icon = ({ name, size = 16, stroke = 1.7, ...rest }) => {
   }
 };
 
-export function Crest({ subtitle }) {
+export function Crest({ subtitle, variant = 'ink' }) {
   return (
-    <div className="crest">
+    <div className={`crest${variant === 'brand' ? ' crest--brand' : ''}`}>
       <div className="mark">ר</div>
-      <div style={{display:'flex', flexDirection:'column', lineHeight:1.1, gap:2}}>
-        <div>רחל</div>
-        {subtitle && <div style={{font:'500 11px var(--font-ui)', color:'var(--ink-3)', letterSpacing:'.04em'}}>{subtitle}</div>}
+      <div style={{display:'flex', flexDirection:'column'}}>
+        <div className="name">רחל</div>
+        {subtitle && <div className="sub">{subtitle}</div>}
       </div>
     </div>
+  );
+}
+
+export function ModePill({ mode }) {
+  return (
+    <span className={`mode-pill${mode === 'emergency' ? ' is-emergency' : ' is-routine'}`}>
+      <span className="dot"/>
+      {mode === 'emergency' ? 'מצב חירום' : 'שגרה'}
+    </span>
   );
 }
 
@@ -186,20 +195,21 @@ export function PillToggle({ value, options, onChange }) {
 }
 
 export function Kpi({ label, value, accent }) {
-  const color = accent === 'ok' ? 'var(--ok)' : accent === 'bad' ? 'var(--bad)' : 'var(--ink)';
+  const mod = accent === 'ok' ? 'kpi--ok' : accent === 'bad' ? 'kpi--bad' : '';
   return (
-    <div className="card" style={{padding:'16px 18px', display:'flex', flexDirection:'column', gap:6}}>
-      <div style={{font:'600 11px var(--font-ui)', color:'var(--ink-3)', letterSpacing:'.06em', textTransform:'uppercase'}}>{label}</div>
-      <div className="num" style={{font:'600 28px var(--font-mono)', color, lineHeight:1, fontFeatureSettings:'"tnum" 1'}}>{value}</div>
+    <div className={`kpi${mod ? ' ' + mod : ''}`}>
+      <div className="lbl">{label}</div>
+      <div className="val">{value}</div>
     </div>
   );
 }
 
-export function PageHeader({ title, sub, right }) {
+export function PageHeader({ title, sub, tag, right }) {
   return (
-    <header style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:16, paddingBottom:14, borderBottom:'1px solid var(--line)', flexWrap:'wrap'}}>
+    <header style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:16, paddingBottom:14, borderBottom:'1px solid var(--ink)', flexWrap:'wrap'}}>
       <div style={{minWidth:0}}>
-        <h1 style={{margin:0, font:'600 22px var(--font-ui)', letterSpacing:'-.005em'}}>{title}</h1>
+        {tag && <div className="tag" style={{color:'var(--brand)', marginBottom:8}}>{tag}</div>}
+        <h1 style={{margin:0, font:'700 28px/1.05 var(--font-ui)', letterSpacing:'-.02em'}}>{title}</h1>
         {sub && <div style={{font:'400 13px var(--font-ui)', color:'var(--ink-3)', marginTop:6}}>{sub}</div>}
       </div>
       {right && <div style={{flex:'0 0 auto'}}>{right}</div>}

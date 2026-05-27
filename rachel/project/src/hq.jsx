@@ -872,8 +872,11 @@ function EmailView({ user, orgs, users }) {
         )}
         {targetOrgs.length > 0 && (
           <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>
-            {targetOrgs.length} ארגונים נבחרו
-            {missingEmails > 0 && <span style={{color:'var(--warn)', marginInlineStart:10}}>· ל-{missingEmails} חסרה כתובת מייל</span>}
+            {targetOrgs.length} ארגונים נבחרו ·{' '}
+            <span style={{color: missingEmails === targetOrgs.length ? 'var(--bad)' : missingEmails > 0 ? 'var(--warn)' : 'var(--ok)', fontWeight:500}}>
+              {targetOrgs.length - missingEmails} עם מייל
+            </span>
+            {missingEmails > 0 && <span style={{color:'var(--ink-3)'}}>, {missingEmails} ללא מייל</span>}
           </div>
         )}
       </div>
@@ -930,18 +933,41 @@ function EmailView({ user, orgs, users }) {
       </div>
 
       {/* Send button */}
-      {err && <div className="banner banner--bad"><Icon name="alert" size={16}/> {err}</div>}
-      {results && (
+      {err && (
+        <div className="banner banner--bad anim-in">
+          <Icon name="alert" size={18} stroke={2.2}/>
+          <div style={{font:'500 14px var(--font-ui)'}}>{err}</div>
+        </div>
+      )}
+      {results && results.ok.length === 0 && results.failed.length === 0 && (
+        <div className="banner banner--bad anim-in">
+          <Icon name="alert" size={18} stroke={2.2}/>
+          <div style={{font:'500 14px var(--font-ui)'}}>לא נבחרו ארגונים לשליחה.</div>
+        </div>
+      )}
+      {results && results.ok.length === 0 && results.failed.length > 0 && (
+        <div className="banner banner--bad anim-in">
+          <Icon name="alert" size={18} stroke={2.2}/>
+          <div>
+            <div style={{font:'600 14px var(--font-ui)'}}>לא נשלח אף מייל</div>
+            <div style={{font:'400 12px var(--font-ui)', marginTop:4, opacity:.9}}>
+              {results.failed.every(f => f.reason === 'אין כתובת מייל')
+                ? 'לאף ארגון בנבחרים אין כתובת מייל. הוסיפו כתובות בטבלה למעלה.'
+                : results.failed.map(f=>`${f.org}: ${f.reason}`).join(' · ')}
+            </div>
+          </div>
+        </div>
+      )}
+      {results && results.ok.length > 0 && (
         <div className={`banner ${results.failed.length===0?'banner--ok':'banner--warn'} anim-in`}>
           <Icon name="check" size={18} stroke={2.2}/>
           <div>
-            <div style={{font:'500 14px var(--font-ui)'}}>
-              {results.ok.length > 0 && `נשלח ל-${results.ok.length} ארגונים בהצלחה.`}
-              {results.failed.length > 0 && ` ${results.failed.length} נכשלו.`}
+            <div style={{font:'600 15px var(--font-ui)'}}>
+              ✓ נשלח בהצלחה ל-{results.ok.length} ארגונים!
             </div>
             {results.failed.length > 0 && (
-              <div style={{font:'400 12px var(--font-ui)', marginTop:4}}>
-                {results.failed.map(f=>`${f.org}: ${f.reason}`).join(' · ')}
+              <div style={{font:'400 12px var(--font-ui)', marginTop:4, opacity:.9}}>
+                {results.failed.length} נכשלו: {results.failed.map(f=>`${f.org} (${f.reason})`).join(', ')}
               </div>
             )}
           </div>

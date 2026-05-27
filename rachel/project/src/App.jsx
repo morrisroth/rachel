@@ -153,6 +153,13 @@ function FieldLogin({ users, onLogin }) {
   const [pw, setPw]     = useState('');
   const [err, setErr]   = useState('');
   const [busy, setBusy] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 640);
+
+  useEffect(() => {
+    const fn = () => setIsDesktop(window.innerWidth >= 640);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
 
   async function submit(e) {
     e?.preventDefault();
@@ -165,14 +172,70 @@ function FieldLogin({ users, onLogin }) {
     setBusy(false);
   }
 
-  async function quickPick(u) { setBusy(true); await onLogin(u); setBusy(false); }
+  const formBody = (
+    <>
+      <div>
+        <label className="label">מספר תעודת זהות</label>
+        <div style={{position:'relative'}}>
+          <Icon name="user" size={14} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
+          <input className="input num-input" inputMode="numeric" maxLength={9}
+            value={id} onChange={e => setId(e.target.value.replace(/\D/g,''))}
+            placeholder="9 ספרות" style={{paddingInlineStart:38}}/>
+        </div>
+      </div>
+      <div>
+        <label className="label">סיסמה</label>
+        <div style={{position:'relative'}}>
+          <Icon name="lock" size={14} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
+          <input className="input" type="password"
+            value={pw} onChange={e => setPw(e.target.value)}
+            placeholder="••••" style={{paddingInlineStart:38}}/>
+        </div>
+      </div>
+      {err && (
+        <div style={{font:'500 13px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:7, padding:'10px 13px', background:'var(--bad-bg)', border:'1px solid var(--bad-line)', borderRadius:'var(--r-1)'}}>
+          <Icon name="alert" size={13}/> {err}
+        </div>
+      )}
+      <button type="submit" disabled={busy} className="btn btn--brand btn--lg"
+        style={{width:'100%', justifyContent:'space-between', marginTop:4, opacity: busy ? .6 : 1}}>
+        <span>{busy ? 'מתחבר…' : 'כניסה לדיווח'}</span>
+        {!busy && <Icon name="arrow-l" size={16}/>}
+      </button>
+    </>
+  );
 
-  const fieldUsers = users.filter(u => u.role === 'FIELD_USER' && u.id <= 22);
+  if (isDesktop) {
+    return (
+      <div style={{minHeight:'100dvh', display:'flex', flexDirection:'column', background:'var(--paper)', backgroundImage:'linear-gradient(var(--hairline) 1px, transparent 1px), linear-gradient(90deg, var(--hairline) 1px, transparent 1px)', backgroundSize:'48px 48px'}}>
+        <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 32px', height:56, borderBottom:'1px solid var(--ink)', background:'var(--paper)', flexShrink:0}}>
+          <Crest subtitle="דיווח שטח"/>
+          <div style={{display:'flex', alignItems:'center', gap:12}}>
+            <ModePill mode="emergency"/>
+            <a href="/hq.html" style={{font:'500 11px var(--font-mono)', color:'var(--ink-3)', textDecoration:'none', letterSpacing:'.08em', textTransform:'uppercase'}}>HQ →</a>
+          </div>
+        </header>
+        <div style={{flex:1, display:'grid', placeItems:'center', padding:'48px 24px'}}>
+          <div style={{width:'100%', maxWidth:420}}>
+            <div style={{marginBottom:28}}>
+              <div className="tag" style={{color:'var(--brand)', marginBottom:8}}>01 · כניסה</div>
+              <h1 style={{margin:'0 0 6px', font:'800 38px/1.05 var(--font-ui)', letterSpacing:'-.025em'}}>שלום, נציג השטח</h1>
+              <p style={{margin:0, font:'400 14px/1.5 var(--font-ui)', color:'var(--ink-3)'}}>
+                דווח את מלאי הארגון. הנתונים נכנסים מיידית לתמונת המצב הלאומית.
+              </p>
+            </div>
+            <form onSubmit={submit} style={{display:'flex', flexDirection:'column', gap:14}}>
+              {formBody}
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="phone-stage">
       <div className="phone">
-        {/* Status bar */}
         <div className="phone-status">
           <span className="mono" style={{fontWeight:600}}>9:41</span>
           <span style={{display:'flex', gap:6, alignItems:'center', fontSize:12, color:'var(--ink-3)'}}>
@@ -182,15 +245,11 @@ function FieldLogin({ users, onLogin }) {
             </span>
           </span>
         </div>
-
         <div className="phone-body" style={{display:'flex', flexDirection:'column', overflow:'auto', padding:'14px 22px 0'}}>
-          {/* Header */}
           <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:28, paddingBottom:12, borderBottom:'1px solid var(--ink)'}}>
             <Crest subtitle="דיווח שטח"/>
             <ModePill mode="emergency"/>
           </div>
-
-          {/* Hero */}
           <div style={{marginBottom:24}}>
             <div className="tag" style={{color:'var(--brand)'}}>01 · כניסה</div>
             <h1 style={{margin:'10px 0 4px', font:'800 30px/1.05 var(--font-ui)', letterSpacing:'-.02em'}}>שלום, נציג השטח</h1>
@@ -198,46 +257,14 @@ function FieldLogin({ users, onLogin }) {
               דווח את מלאי הארגון. הנתונים נכנסים מיידית לתמונת המצב הלאומית.
             </p>
           </div>
-
-          {/* Form */}
           <form onSubmit={submit} style={{display:'flex', flexDirection:'column', gap:14}}>
-            <div>
-              <label className="label">מספר תעודת זהות</label>
-              <div style={{position:'relative'}}>
-                <Icon name="user" size={14} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
-                <input className="input num-input" inputMode="numeric" maxLength={9}
-                  value={id} onChange={e => setId(e.target.value.replace(/\D/g,''))}
-                  placeholder="9 ספרות" style={{paddingInlineStart:38}}/>
-              </div>
-            </div>
-            <div>
-              <label className="label">סיסמה</label>
-              <div style={{position:'relative'}}>
-                <Icon name="lock" size={14} style={{position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-3)'}}/>
-                <input className="input" type="password"
-                  value={pw} onChange={e => setPw(e.target.value)}
-                  placeholder="••••" style={{paddingInlineStart:38}}/>
-              </div>
-            </div>
-            {err && (
-              <div style={{font:'500 13px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:7, padding:'10px 13px', background:'var(--bad-bg)', border:'1px solid var(--bad-line)', borderRadius:'var(--r-1)'}}>
-                <Icon name="alert" size={13}/> {err}
-              </div>
-            )}
-            <button type="submit" disabled={busy} className="btn btn--brand btn--lg"
-              style={{width:'100%', justifyContent:'space-between', marginTop:4, opacity: busy ? .6 : 1}}>
-              <span>{busy ? 'מתחבר…' : 'כניסה לדיווח'}</span>
-              {!busy && <Icon name="arrow-l" size={16}/>}
-            </button>
+            {formBody}
           </form>
-
           <div style={{marginTop:20, paddingTop:14, borderTop:'1px solid var(--hairline)', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
             <span style={{font:'500 11px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.06em', textTransform:'uppercase'}}>HQ_USER?</span>
             <a href="/hq.html" style={{font:'600 12px var(--font-ui)', color:'var(--brand)', textDecoration:'none'}}>לחמ״ל המרכזי ←</a>
           </div>
         </div>
-
-        {/* Home indicator */}
         <div style={{display:'flex', justifyContent:'center', padding:'8px 0 10px', flexShrink:0}}>
           <div style={{width:120, height:4, background:'var(--ink)', borderRadius:2}}/>
         </div>

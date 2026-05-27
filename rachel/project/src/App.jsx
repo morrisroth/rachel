@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   dbFetchOrganizations, dbFetchUsers, dbLogin,
   dbFetchHistory, dbInsertReport, dbFetchNotifications,
-  dbFetchAppSettings, dbSendEmail,
+  dbFetchAppSettings, dbSendEmail, PRODUCTS, CATEGORIES,
 } from './data.js';
 import { Icon, Crest, ModePill } from './components.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakButton } from './tweaks-panel.jsx';
@@ -74,29 +74,76 @@ export function App() {
     if (session?.email) {
       const org = orgs.find(o => o.id === session.organization_id);
       const now = new Date().toLocaleString('he-IL', { dateStyle:'short', timeStyle:'short' });
+
+      const lineRows = (payload.lines || []).map((line, i) => {
+        const prodName = line.product?.kind === 'free'
+          ? line.product.name
+          : PRODUCTS.find(p => p.id === line.product?.product_id)?.name || '—';
+        const cat = CATEGORIES.find(c => c.id === (line.category_id || PRODUCTS.find(p => p.id === line.product?.product_id)?.category_id));
+        const unit = line.unit || '';
+        const qColor = line.quality_status === 'תקין' ? '#1a6b3a' : line.quality_status === 'בלאי' ? '#b45309' : '#b91c1c';
+        return `
+          <tr style="background:${i % 2 === 0 ? '#fafaf9' : '#ffffff'}">
+            <td style="padding:10px 14px;font-weight:600;color:#1a1a1a">${prodName}</td>
+            <td style="padding:10px 14px;color:#555;font-size:12px">${cat?.name || '—'}</td>
+            <td style="padding:10px 14px;font-weight:700;font-family:monospace;color:#1a1a1a;text-align:center">${line.current_stock} ${unit}</td>
+            <td style="padding:10px 14px;font-family:monospace;color:#555;text-align:center">${line.incoming_stock || '0'} ${unit}</td>
+            <td style="padding:10px 14px;font-size:12px;color:#555">${line.incoming_status || '—'}</td>
+            <td style="padding:10px 14px;font-size:12px;font-weight:600;color:${qColor}">${line.quality_status || '—'}</td>
+            ${line.notes ? `<td style="padding:10px 14px;font-size:12px;color:#777;font-style:italic">${line.notes}</td>` : '<td style="padding:10px 14px;color:#ccc;font-size:12px">—</td>'}
+          </tr>`;
+      }).join('');
+
       dbSendEmail({
         to: session.email,
-        subject: '✓ הדיווח התקבל — מערכת רחל',
-        html: `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"></head><body style="margin:0;padding:20px;background:#f5f5f5;font-family:Arial,sans-serif">
-<div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.1)">
-  <div style="background:linear-gradient(135deg,#1a6b3a,#145530);padding:28px 32px">
-    <div style="color:rgba(255,255,255,.7);font-size:13px;margin-bottom:6px">מערכת רחל — דיווח מלאי לאומי</div>
-    <h1 style="color:white;margin:0;font-size:22px">✓ הדיווח התקבל בהצלחה</h1>
-  </div>
-  <div style="padding:28px 32px">
-    <p style="font-size:16px;color:#333">שלום ${session.full_name},</p>
-    <p style="font-size:15px;color:#555">הדיווח עבור <strong>${org?.name || ''}</strong> התקבל ונרשם במערכת.</p>
-    <div style="background:#f0f7f0;border:1px solid #c3e6c3;border-radius:8px;padding:16px 20px;margin:20px 0">
-      <table width="100%" style="border-collapse:collapse;font-size:14px">
-        <tr><td style="color:#666;padding:4px 0">ארגון:</td><td style="font-weight:bold;text-align:left">${org?.name || ''}</td></tr>
-        <tr><td style="color:#666;padding:4px 0">תאריך ושעה:</td><td style="font-weight:bold;text-align:left">${now}</td></tr>
-        <tr><td style="color:#666;padding:4px 0">מספר פריטים:</td><td style="font-weight:bold;text-align:left">${payload.lines?.length || 0}</td></tr>
-      </table>
+        subject: `✓ דיווח מלאי התקבל — ${org?.name || ''} — ${now}`,
+        html: `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:24px 16px;background:#f0ede8;font-family:Arial,sans-serif;direction:rtl">
+<div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d4cfc8;border-radius:4px;overflow:hidden">
+
+  <div style="background:#1a1a16;padding:24px 28px;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="color:rgba(255,255,255,.45);font-size:10px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;font-family:monospace">מערכת רחל · דיווח מלאי לאומי</div>
+      <div style="color:#ffffff;font-size:20px;font-weight:700">✓ הדיווח התקבל בהצלחה</div>
     </div>
-    <p style="font-size:14px;color:#777">תודה על הדיווח בזמן. הנתונים שלך מסייעים לתמונת המצב הלאומית.</p>
-    <div style="margin-top:24px;padding-top:20px;border-top:1px solid #eee;text-align:center;color:#aaa;font-size:12px">מערכת רחל — מטה החירום הלאומי</div>
+    <div style="background:#1a6b3a;color:#ffffff;padding:6px 14px;border-radius:3px;font-size:11px;font-weight:700;font-family:monospace;letter-spacing:.08em;white-space:nowrap">אושר</div>
   </div>
-</div></body></html>`,
+
+  <div style="padding:24px 28px;border-bottom:1px solid #e8e4de">
+    <p style="margin:0 0 4px;font-size:15px;color:#1a1a1a">שלום <strong>${session.full_name}</strong>,</p>
+    <p style="margin:0;font-size:14px;color:#666">דיווח המלאי שלך עבור <strong>${org?.name || ''}</strong> נרשם בהצלחה במערכת.</p>
+  </div>
+
+  <div style="padding:16px 28px;background:#f9f7f4;border-bottom:1px solid #e8e4de;display:flex;gap:32px;flex-wrap:wrap">
+    <div><div style="font-size:10px;color:#999;letter-spacing:.1em;text-transform:uppercase;font-family:monospace;margin-bottom:3px">תאריך ושעה</div><div style="font-size:14px;font-weight:600;color:#1a1a1a">${now}</div></div>
+    <div><div style="font-size:10px;color:#999;letter-spacing:.1em;text-transform:uppercase;font-family:monospace;margin-bottom:3px">ארגון</div><div style="font-size:14px;font-weight:600;color:#1a1a1a">${org?.name || '—'}</div></div>
+    <div><div style="font-size:10px;color:#999;letter-spacing:.1em;text-transform:uppercase;font-family:monospace;margin-bottom:3px">פריטים</div><div style="font-size:14px;font-weight:600;color:#1a1a1a">${payload.lines?.length || 0}</div></div>
+  </div>
+
+  <div style="padding:20px 28px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#999;font-family:monospace;margin-bottom:12px">פירוט מלאי שדווח</div>
+    <table width="100%" style="border-collapse:collapse;font-size:13px;border:1px solid #e8e4de;border-radius:4px;overflow:hidden">
+      <thead>
+        <tr style="background:#f0ede8">
+          <th style="padding:9px 14px;text-align:right;font-size:10px;font-weight:700;letter-spacing:.1em;color:#888;font-family:monospace;border-bottom:1px solid #e8e4de">מוצר</th>
+          <th style="padding:9px 14px;text-align:right;font-size:10px;font-weight:700;letter-spacing:.1em;color:#888;font-family:monospace;border-bottom:1px solid #e8e4de">משרד</th>
+          <th style="padding:9px 14px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.1em;color:#888;font-family:monospace;border-bottom:1px solid #e8e4de">מלאי נוכחי</th>
+          <th style="padding:9px 14px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.1em;color:#888;font-family:monospace;border-bottom:1px solid #e8e4de">בדרך</th>
+          <th style="padding:9px 14px;text-align:right;font-size:10px;font-weight:700;letter-spacing:.1em;color:#888;font-family:monospace;border-bottom:1px solid #e8e4de">סטטוס אספקה</th>
+          <th style="padding:9px 14px;text-align:right;font-size:10px;font-weight:700;letter-spacing:.1em;color:#888;font-family:monospace;border-bottom:1px solid #e8e4de">איכות</th>
+          <th style="padding:9px 14px;text-align:right;font-size:10px;font-weight:700;letter-spacing:.1em;color:#888;font-family:monospace;border-bottom:1px solid #e8e4de">הערות</th>
+        </tr>
+      </thead>
+      <tbody>${lineRows}</tbody>
+    </table>
+  </div>
+
+  <div style="padding:16px 28px;border-top:1px solid #e8e4de;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:11px;color:#aaa;font-family:monospace;letter-spacing:.06em">מערכת רחל · מטה החירום הלאומי</span>
+    <span style="font-size:11px;color:#aaa">אין להשיב למייל זה</span>
+  </div>
+</div>
+</body></html>`,
       }).catch(() => {});
     }
   }

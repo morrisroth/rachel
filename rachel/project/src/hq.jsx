@@ -812,24 +812,29 @@ function EmailView({ user, orgs, users }) {
 
   async function send() {
     setErr(''); setBusy(true); setResults(null);
-    await saveTemplate();
+    try {
+      await saveTemplate().catch(() => {});
 
-    let targets = [];
-    if (target === 'all')  targets = orgs.filter(o => o.active);
-    else if (target === 'cat')  targets = orgs.filter(o => o.active && o.cat_id === Number(catId));
-    else if (target === 'org')  targets = orgs.filter(o => o.id === Number(orgId));
+      let targets = [];
+      if (target === 'all')       targets = orgs.filter(o => o.active);
+      else if (target === 'cat')  targets = orgs.filter(o => o.active && o.cat_id === Number(catId));
+      else if (target === 'org')  targets = orgs.filter(o => o.id === Number(orgId));
 
-    const ok = [], failed = [];
-    for (const org of targets) {
-      const email = localEmails[org.id];
-      if (!email) { failed.push({ org: org.name, reason: 'אין כתובת מייל' }); continue; }
-      try {
-        await dbSendEmail({ to: email, subject, html: buildHtml(org.name) });
-        ok.push(org.name);
-      } catch(e) { failed.push({ org: org.name, reason: e.message }); }
+      const ok = [], failed = [];
+      for (const org of targets) {
+        const email = localEmails[org.id];
+        if (!email) { failed.push({ org: org.name, reason: 'אין כתובת מייל' }); continue; }
+        try {
+          await dbSendEmail({ to: email, subject, html: buildHtml(org.name) });
+          ok.push(org.name);
+        } catch(e) { failed.push({ org: org.name, reason: e.message }); }
+      }
+      setResults({ ok, failed });
+    } catch(e) {
+      setErr(e.message || 'שגיאה בשליחה');
+    } finally {
+      setBusy(false);
     }
-    setResults({ ok, failed });
-    setBusy(false);
   }
 
   const targetOrgs = target === 'all' ? orgs.filter(o => o.active)

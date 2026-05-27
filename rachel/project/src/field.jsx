@@ -353,7 +353,7 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
         <div style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', paddingBottom:14, borderBottom:'1px solid var(--ink)'}}>
           <div>
             <div className="tag" style={{color:'var(--brand)', marginBottom:6}}>{mode === 'emergency' ? 'DAILY · 01' : 'WEEKLY · 01'}</div>
-            <h1 style={{margin:'0 0 4px', font:'700 30px/1.05 var(--font-ui)', letterSpacing:'-.02em'}}>דיווח מלאי יומי</h1>
+            <h1 style={{margin:'0 0 4px', font:'700 30px/1.05 var(--font-ui)', letterSpacing:'-.02em'}}>{mode === 'emergency' ? 'דיווח מלאי יומי' : 'דיווח מלאי שבועי'}</h1>
             <div style={{font:'400 13px var(--font-ui)', color:'var(--ink-3)'}}>
               <span style={{font:'600 13px var(--font-mono)', color:'var(--ink-2)'}}>{lines.length}</span> פריטים בדיווח
             </div>

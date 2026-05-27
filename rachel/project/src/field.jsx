@@ -145,33 +145,32 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
   if (isPc) {
     return (
       <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)', position:'relative'}}>
-        <header className="topbar" style={{padding:'0 20px', justifyContent:'space-between'}}>
-          {/* Left: org + time + mode */}
-          <div style={{display:'flex', alignItems:'center', gap:10, flexShrink:0}}>
-            <span className="chip chip--accent" style={{fontSize:11, fontFamily:'var(--font-mono)', letterSpacing:'.06em'}}>
-              ORG-{String(user.organization_id).padStart(4,'0')}
-            </span>
-            <div style={{width:1, height:18, background:'var(--line-2)'}}/>
-            <FieldClock/>
-            <div style={{width:1, height:18, background:'var(--line-2)'}}/>
-            <ModePill mode={mode}/>
+        <header className="topbar" style={{padding:'0 20px'}}>
+          {/* Start (RTL right): Crest + nav inline */}
+          <div style={{display:'flex', alignItems:'center', gap:24}}>
+            <Crest subtitle={orgName}/>
+            <nav style={{display:'flex', gap:2}}>
+              {navItems.map(t => (
+                <a key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)} style={{position:'relative'}}>
+                  {t.label}
+                  {t.badge && tab !== t.id && <span style={{position:'absolute', top:8, insetInlineEnd:8, width:6, height:6, borderRadius:'50%', background:'var(--bad)'}}/>}
+                </a>
+              ))}
+            </nav>
           </div>
-          {/* Center: nav */}
-          <nav style={{display:'flex', gap:2, position:'absolute', left:'50%', transform:'translateX(-50%)'}}>
-            {navItems.map(t => (
-              <a key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)} style={{position:'relative'}}>
-                {t.label}
-                {t.badge && tab !== t.id && <span style={{position:'absolute', top:8, insetInlineEnd:8, width:6, height:6, borderRadius:'50%', background:'var(--bad)'}}/>}
-              </a>
-            ))}
-          </nav>
-          {/* Right: crest + user */}
-          <div style={{display:'flex', alignItems:'center', gap:10, flexShrink:0}}>
-            <Crest/>
-            <div style={{width:1, height:18, background:'var(--line-2)'}}/>
-            <div style={{lineHeight:1.2}}>
-              <div style={{font:'600 12.5px var(--font-ui)'}}>{user.full_name}</div>
-              <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{orgName}</div>
+          {/* End (RTL left): mode + clock + divider + user initials + name + logout */}
+          <div style={{display:'flex', alignItems:'center', gap:14}}>
+            <ModePill mode={mode}/>
+            <FieldClock/>
+            <div style={{width:1, height:24, background:'var(--line-2)'}}/>
+            <div style={{display:'flex', alignItems:'center', gap:8}}>
+              <div style={{width:28, height:28, borderRadius:3, background:'var(--ink)', color:'var(--paper)', display:'grid', placeItems:'center', font:'700 11px var(--font-mono)', flexShrink:0}}>
+                {user.full_name.split(' ').map(p => p[0]).join('').slice(0,2)}
+              </div>
+              <div style={{lineHeight:1.1}}>
+                <div style={{font:'600 12.5px var(--font-ui)'}}>{user.full_name}</div>
+                <div style={{font:'500 10px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.08em'}}>ORG-{String(user.organization_id).padStart(4,'0')}</div>
+              </div>
             </div>
             <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={14}/></button>
           </div>
@@ -350,6 +349,17 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
 
   return (
     <div style={{padding: isPc ? '28px 32px 80px' : '16px 16px 80px', display:'flex', flexDirection:'column', gap: isPc ? 18 : 14, maxWidth: isPc ? 1080 : '100%', margin: isPc ? '0 auto' : 0, width:'100%'}}>
+      {isPc && (
+        <div style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', paddingBottom:14, borderBottom:'1px solid var(--ink)'}}>
+          <div>
+            <div className="tag" style={{color:'var(--brand)', marginBottom:6}}>DAILY · 01</div>
+            <h1 style={{margin:'0 0 4px', font:'700 30px/1.05 var(--font-ui)', letterSpacing:'-.02em'}}>דיווח מלאי יומי</h1>
+            <div style={{font:'400 13px var(--font-ui)', color:'var(--ink-3)'}}>
+              <span style={{font:'600 13px var(--font-mono)', color:'var(--ink-2)'}}>{lines.length}</span> פריטים בדיווח
+            </div>
+          </div>
+        </div>
+      )}
       <StatusBlock status={dailyOk ? 'ok' : 'missing'} lastReportMs={lastReport?.reported_at}/>
       <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
         <button className="btn btn--ghost" onClick={loadYesterday} disabled={!lastReport} style={{flex: isPc ? '0 0 auto' : 1, justifyContent:'center'}}>

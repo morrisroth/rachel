@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications, dbInsertReport, dbFetchAppSettings, dbSaveAppSetting, dbSendEmail, dbUpdateUser } from './data.js';
 import { Icon, Crest, ModePill, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
 import { OrgsView } from './orgs.jsx';
@@ -18,42 +18,49 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
 
   const initials = user.full_name.split(' ').map(s => s[0]).join('').slice(0, 2);
   const navItems = [
-    { id:'monitor', icon:'home',     label:'ניטור' },
-    { id:'orgs',    icon:'user',     label:'ארגונים' },
-    { id:'export',  icon:'download', label:'ייצוא' },
-    { id:'notify',  icon:'bell',     label:'התראות' },
-    { id:'email',   icon:'mail',     label:'מיילים' },
-    { id:'mode',    icon:'shield',   label:'מצב לאומי' },
-    { id:'audit',   icon:'history',  label:'יומן' },
+    { id:'monitor', label:'סקירה' },
+    { id:'orgs',    label:'ארגונים' },
+    { id:'export',  label:'ייצוא' },
+    { id:'notify',  label:'התראות' },
+    { id:'email',   label:'מיילים' },
+    { id:'mode',    label:'מצב' },
+    { id:'audit',   label:'יומן' },
   ];
 
   return (
     <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', background:'var(--paper)'}}>
       {/* Top bar */}
-      <div className="topbar">
-        <div style={{display:'flex', alignItems:'center', gap:20}}>
-          <Crest subtitle="חמ״ל מרכזי" variant="brand"/>
-          <div style={{width:1, height:22, background:'var(--line-2)'}}/>
-          <nav className="topbar" style={{height:'auto', border:0, padding:0, background:'transparent', gap:0}}>
-            {navItems.map(n => (
-              <a key={n.id} className={tab === n.id ? 'on' : ''} onClick={() => setTab(n.id)}
-                style={{display:'flex', alignItems:'center', gap:7}}>
-                <Icon name={n.icon} size={14}/> {n.label}
-              </a>
-            ))}
-          </nav>
-        </div>
-        <div style={{display:'flex', alignItems:'center', gap:12}}>
+      <div className="topbar" style={{padding:'0 20px', justifyContent:'space-between'}}>
+        {/* Left: meta */}
+        <div style={{display:'flex', alignItems:'center', gap:12, flexShrink:0}}>
+          <Crest variant="brand" subtitle="חמ״ל מרכזי"/>
+          <div style={{width:1, height:18, background:'var(--line-2)'}}/>
+          <button className="btn btn--ghost btn--sm" onClick={onRefreshMonitor} style={{gap:5}}>
+            <Icon name="history" size={13}/>רענון
+          </button>
+          <div style={{width:1, height:18, background:'var(--line-2)'}}/>
+          <LiveClock/>
+          <div style={{width:1, height:18, background:'var(--line-2)'}}/>
           <ModePill mode={mode}/>
-          <div style={{width:1, height:22, background:'var(--line-2)'}}/>
-          <div style={{display:'flex', alignItems:'center', gap:8}}>
-            <div style={{width:28, height:28, borderRadius:4, background:'var(--ink)', color:'var(--paper)', display:'grid', placeItems:'center', font:'700 11px var(--font-mono)', flexShrink:0}}>
-              {initials}
-            </div>
-            <div style={{lineHeight:1.2}}>
-              <div style={{font:'600 12.5px var(--font-ui)'}}>{user.full_name}</div>
-              <div style={{font:'500 10px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.08em', textTransform:'uppercase'}}>{user.title}</div>
-            </div>
+        </div>
+
+        {/* Center: nav */}
+        <nav style={{display:'flex', gap:2, position:'absolute', left:'50%', transform:'translateX(-50%)'}}>
+          {navItems.map(n => (
+            <a key={n.id} className={tab === n.id ? 'on' : ''} onClick={() => setTab(n.id)}>
+              {n.label}
+            </a>
+          ))}
+        </nav>
+
+        {/* Right: user */}
+        <div style={{display:'flex', alignItems:'center', gap:10, flexShrink:0}}>
+          <div style={{width:28, height:28, borderRadius:4, background:'var(--ink)', color:'var(--paper)', display:'grid', placeItems:'center', font:'700 11px var(--font-mono)', flexShrink:0}}>
+            {initials}
+          </div>
+          <div style={{lineHeight:1.2}}>
+            <div style={{font:'600 12.5px var(--font-ui)'}}>{user.full_name}</div>
+            <div style={{font:'500 10px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.08em', textTransform:'uppercase'}}>{user.title}</div>
           </div>
           <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={13}/></button>
         </div>
@@ -470,7 +477,7 @@ function ExportView({ onExport, mode, orgs, user }) {
             {!dateFrom && !dateTo && ` מוגדר לדיווח האחרון לכל ארגון.`}
           </div>
         </div>
-        <button className="btn btn--accent btn--lg" disabled={busy} onClick={() => run('ייצוא ארצי מלא')} style={{minWidth:230, justifyContent:'center'}}>
+        <button className="btn btn--brand btn--lg" disabled={busy} onClick={() => run('ייצוא ארצי מלא')} style={{minWidth:230, justifyContent:'center'}}>
           {busy ? 'מייצא…' : <><Icon name="download" size={16}/> ייצוא אקסל ארצי</>}
         </button>
       </div>
@@ -584,7 +591,7 @@ function ExportView({ onExport, mode, orgs, user }) {
             </div>
             <div style={{display:'flex', gap:8, justifyContent:'flex-end', padding:'14px 24px', borderTop:'1px solid var(--line)', background:'var(--surface)'}}>
               <button className="btn btn--ghost" disabled={importBusy} onClick={() => setImporting(false)}>ביטול</button>
-              <button className="btn btn--accent" disabled={importBusy} onClick={doImportReports}>
+              <button className="btn btn--brand" disabled={importBusy} onClick={doImportReports}>
                 {importBusy ? 'מייבא…' : `ייבא ${importRows.length} שורות`}
               </button>
             </div>
@@ -683,7 +690,7 @@ function NotifyView({ user, orgs, notifications, onSend }) {
         {err && <div className="banner banner--bad"><Icon name="alert" size={16}/> {err}</div>}
         {sent && <div className="banner banner--ok anim-in"><Icon name="check" size={16}/> ההתראה נשלחה בהצלחה.</div>}
 
-        <button className="btn btn--accent" disabled={busy || !msg.trim() || (target==='org' && !orgId)} onClick={send} style={{alignSelf:'flex-start', minWidth:200}}>
+        <button className="btn btn--brand" disabled={busy || !msg.trim() || (target==='org' && !orgId)} onClick={send} style={{alignSelf:'flex-start', minWidth:200}}>
           {busy ? 'שולח…' : <><Icon name="bell" size={15}/> {target==='all' ? 'שלח לכולם' : 'שלח לארגון'}</>}
         </button>
       </div>
@@ -729,7 +736,7 @@ function NotifyView({ user, orgs, notifications, onSend }) {
               <label style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>ימי דילוג (לא תישלח התראה)</label>
               <div style={{display:'flex', gap:6, flexWrap:'wrap', marginTop:2}}>
                 {['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'].map((d, i) => (
-                  <label key={i} style={{display:'flex', alignItems:'center', gap:5, cursor:'pointer', padding:'5px 10px', borderRadius:6, border:'1px solid var(--line)', background: scheduleDays.includes(i) ? 'var(--accent-bg)' : 'var(--bg)', font:'500 13px var(--font-ui)', userSelect:'none'}}>
+                  <label key={i} style={{display:'flex', alignItems:'center', gap:5, cursor:'pointer', padding:'5px 10px', borderRadius:6, border:'1px solid var(--line)', background: scheduleDays.includes(i) ? 'var(--brand-bg)' : 'transparent', font:'500 13px var(--font-ui)', userSelect:'none'}}>
                     <input type="checkbox" checked={scheduleDays.includes(i)} onChange={() => toggleDay(i)} style={{accentColor:'var(--accent)', width:14, height:14}}/>
                     {d}
                   </label>
@@ -738,7 +745,7 @@ function NotifyView({ user, orgs, notifications, onSend }) {
             </div>
           </div>
           {scheduleSaved && <div className="banner banner--ok anim-in"><Icon name="check" size={16}/> הגדרות התזמון נשמרו.</div>}
-          <button className="btn btn--accent" style={{alignSelf:'flex-start', minWidth:180}} disabled={scheduleBusy} onClick={saveSchedule}>
+          <button className="btn btn--brand" style={{alignSelf:'flex-start', minWidth:180}} disabled={scheduleBusy} onClick={saveSchedule}>
             {scheduleBusy ? 'שומר…' : <><Icon name="history" size={14}/> שמור הגדרות תזמון</>}
           </button>
         </div>
@@ -888,7 +895,7 @@ function EmailView({ user, orgs, users }) {
                   {editEmail === o.id ? (
                     <form onSubmit={e=>{e.preventDefault(); saveOrgEmail(o.id, e.target.email.value);}} style={{display:'flex',gap:6}}>
                       <input name="email" type="email" className="input" defaultValue={localEmails[o.id]||''} placeholder="example@company.com" style={{flex:1}} autoFocus/>
-                      <button type="submit" className="btn btn--accent btn--sm">שמור</button>
+                      <button type="submit" className="btn btn--brand btn--sm">שמור</button>
                       <button type="button" className="btn btn--ghost btn--sm" onClick={()=>setEditEmail(null)}>ביטול</button>
                     </form>
                   ) : (
@@ -967,7 +974,7 @@ function EmailView({ user, orgs, users }) {
           </div>
         </div>
       )}
-      <button className="btn btn--accent btn--lg" style={{alignSelf:'flex-start', minWidth:220}}
+      <button className="btn btn--brand btn--lg" style={{alignSelf:'flex-start', minWidth:220}}
         disabled={busy || (target==='org' && !orgId) || (target==='cat' && !catId)}
         onClick={send}>
         {busy ? 'שולח…' : <><Icon name="mail" size={16}/> שלח מייל ל{target==='all'?'כל הארגונים':target==='cat'?'משרד נבחר':'ארגון נבחר'}</>}
@@ -1073,7 +1080,7 @@ function ModeView({ mode, onSetMode, users }) {
       </div>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>שינוי המצב מעדכן באופן מיידי את תדירות הדיווח.</div>
-        <button className="btn btn--accent" disabled={pending === mode || saving} onClick={() => setConfirming(true)}>החל שינוי</button>
+        <button className="btn btn--brand" disabled={pending === mode || saving} onClick={() => setConfirming(true)}>החל שינוי</button>
       </div>
       {saved && (
         <div className="banner banner--ok anim-in">
@@ -1101,7 +1108,7 @@ function ModeView({ mode, onSetMode, users }) {
             <div style={{flex:1}}>
               <div style={{font:'600 14px var(--font-ui)', color:'var(--warn)'}}>אישור החלפת מצב לאומי ל-«{pending === 'emergency' ? 'חירום' : 'שגרה'}»</div>
               <div style={{display:'flex', gap:8, marginTop:14}}>
-                <button className="btn btn--accent btn--sm" disabled={saving} onClick={doApply}>
+                <button className="btn btn--brand btn--sm" disabled={saving} onClick={doApply}>
                   {saving ? 'שומר…' : 'אישור והחלה'}
                 </button>
                 <button className="btn btn--ghost btn--sm" disabled={saving} onClick={() => setConfirming(false)}>ביטול</button>
@@ -1111,6 +1118,20 @@ function ModeView({ mode, onSetMode, users }) {
         </div>
       )}
     </div>
+  );
+}
+
+function LiveClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const pad = n => String(n).padStart(2, '0');
+  return (
+    <span style={{font:'500 12px var(--font-mono)', color:'var(--ink-2)', letterSpacing:'.04em'}}>
+      {pad(now.getHours())}:{pad(now.getMinutes())} · {pad(now.getDate())}.{pad(now.getMonth()+1)}.{now.getFullYear()}
+    </span>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { PRODUCTS, CATEGORIES, INCOMING_STATUSES, QUALITY_STATUSES, ALL_UNITS, dbUploadReportImage } from './data.js';
 import { Icon, Crest, ModePill, StatusBlock, ProductCombobox, formatDate, relTime, reportIsWithin24h } from './components.jsx';
 
@@ -145,26 +145,33 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
   if (isPc) {
     return (
       <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)', position:'relative'}}>
-        <header className="topbar" style={{padding:'0 32px', height:56}}>
-          <div style={{display:'flex', alignItems:'center', gap:18}}>
-            <Crest subtitle={`נציג שטח · ${orgName}`}/>
-            <div style={{width:1, height:22, background:'var(--line-2)'}}/>
-            <nav className="topbar" style={{height:'auto', border:0, padding:0, background:'transparent'}}>
-              {navItems.map(t => (
-                <a key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}
-                  style={{display:'flex', alignItems:'center', gap:7, position:'relative'}}>
-                  <Icon name={t.icon} size={14}/>{t.label}
-                  {t.badge && tab !== t.id && <span style={{position:'absolute', top:3, insetInlineEnd:3, width:6, height:6, borderRadius:'50%', background:'var(--bad)'}}/>}
-                </a>
-              ))}
-            </nav>
-          </div>
-          <div style={{display:'flex', alignItems:'center', gap:12}}>
+        <header className="topbar" style={{padding:'0 20px', justifyContent:'space-between'}}>
+          {/* Left: org + time + mode */}
+          <div style={{display:'flex', alignItems:'center', gap:10, flexShrink:0}}>
+            <span className="chip chip--accent" style={{fontSize:11, fontFamily:'var(--font-mono)', letterSpacing:'.06em'}}>
+              ORG-{String(user.organization_id).padStart(4,'0')}
+            </span>
+            <div style={{width:1, height:18, background:'var(--line-2)'}}/>
+            <FieldClock/>
+            <div style={{width:1, height:18, background:'var(--line-2)'}}/>
             <ModePill mode={mode}/>
-            <div style={{width:1, height:22, background:'var(--line-2)'}}/>
+          </div>
+          {/* Center: nav */}
+          <nav style={{display:'flex', gap:2, position:'absolute', left:'50%', transform:'translateX(-50%)'}}>
+            {navItems.map(t => (
+              <a key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)} style={{position:'relative'}}>
+                {t.label}
+                {t.badge && tab !== t.id && <span style={{position:'absolute', top:8, insetInlineEnd:8, width:6, height:6, borderRadius:'50%', background:'var(--bad)'}}/>}
+              </a>
+            ))}
+          </nav>
+          {/* Right: crest + user */}
+          <div style={{display:'flex', alignItems:'center', gap:10, flexShrink:0}}>
+            <Crest/>
+            <div style={{width:1, height:18, background:'var(--line-2)'}}/>
             <div style={{lineHeight:1.2}}>
               <div style={{font:'600 12.5px var(--font-ui)'}}>{user.full_name}</div>
-              <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>ת״ז <span className="mono">{user.id_number}</span></div>
+              <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{orgName}</div>
             </div>
             <button className="btn btn--ghost btn--sm" onClick={onLogout}><Icon name="logout" size={14}/></button>
           </div>
@@ -225,7 +232,7 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
             </span>
           </span>
         </div>
-        <div className="phone-body" style={{display:'flex', flexDirection:'column'}}>
+        <div className="phone-body">
           {phoneInner}
         </div>
       </div>
@@ -453,7 +460,7 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
               </table>
             </div>
             <div style={{display:'flex', gap:8}}>
-              <button className="btn btn--accent" onClick={applyExcel} style={{flex:1, justifyContent:'center'}}>
+              <button className="btn btn--brand" onClick={applyExcel} style={{flex:1, justifyContent:'center'}}>
                 <Icon name="check" size={14}/> טען {excelRows.length} שורות לטופס
               </button>
               <button className="btn btn--ghost btn--sm" onClick={() => { setExcelRows(null); setExcelFileName(''); }}>
@@ -486,7 +493,7 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
       </div>
 
       <div style={{position: isPc ? 'sticky' : 'static', bottom: isPc ? 16 : 'auto', display:'flex', flexDirection: isPc ? 'row' : 'column', gap:10, alignItems: isPc ? 'center' : 'stretch', background: isPc ? 'var(--bg)' : 'transparent', padding: isPc ? '12px 0' : 0, zIndex:4}}>
-        <button className="btn btn--accent btn--lg" onClick={submit} disabled={submitting || imageUploading} style={{justifyContent:'center', flex: isPc ? '0 0 auto' : 1, minWidth: isPc ? 220 : 0}}>
+        <button className="btn btn--brand btn--lg" onClick={submit} disabled={submitting || imageUploading} style={{justifyContent:'center', flex: isPc ? '0 0 auto' : 1, minWidth: isPc ? 220 : 0}}>
           {imageUploading ? 'מעלה תמונה…' : submitting ? 'שולח…' : 'שלח דיווח מלאי'}
         </button>
         <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)', textAlign:'center', flex:1}}>
@@ -697,5 +704,19 @@ function ProfileRow({ label, value }) {
       <span style={{font:'400 13px var(--font-ui)', color:'var(--ink-3)'}}>{label}</span>
       <span style={{font:'500 13px var(--font-ui)', color:'var(--ink)'}}>{value}</span>
     </div>
+  );
+}
+
+function FieldClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const pad = n => String(n).padStart(2, '0');
+  return (
+    <span style={{font:'500 12px var(--font-mono)', color:'var(--ink-2)', letterSpacing:'.04em'}}>
+      {pad(now.getHours())}:{pad(now.getMinutes())} · {pad(now.getDate())}.{pad(now.getMonth()+1)}.{now.getFullYear()}
+    </span>
   );
 }

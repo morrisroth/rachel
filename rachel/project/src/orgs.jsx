@@ -85,7 +85,7 @@ export function OrgsView({ orgs, users, onAdd, onUpdate }) {
               <Icon name="download" size={15}/> ייבוא מאקסל
               <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onImportFile}/>
             </label>
-            <button className="btn btn--accent" onClick={() => setDrawer('add')}>
+            <button className="btn btn--brand" onClick={() => setDrawer('add')}>
               <Icon name="plus" size={16}/> הוסף ארגון
             </button>
           </div>
@@ -187,7 +187,7 @@ export function OrgsView({ orgs, users, onAdd, onUpdate }) {
             </div>
             <div style={{display:'flex', gap:8, justifyContent:'flex-end', padding:'14px 24px', borderTop:'1px solid var(--line)', background:'var(--surface)'}}>
               <button className="btn btn--ghost" disabled={importBusy} onClick={() => setImporting(false)}>ביטול</button>
-              <button className="btn btn--accent" disabled={importBusy} onClick={doImport}>
+              <button className="btn btn--brand" disabled={importBusy} onClick={doImport}>
                 {importBusy ? 'מייבא…' : `ייבוא ${importRows.length} ארגונים`}
               </button>
             </div>
@@ -368,8 +368,8 @@ function OrgDrawer({ title, org, owner, editing = false, onClose, onSubmit, onTo
                       {products.map(p => {
                         const on = linkedIds.includes(p.id);
                         return (
-                          <label key={p.id} style={{display:'flex', alignItems:'center', gap:10, padding:'9px 14px', cursor:'pointer', borderBottom:'1px solid var(--line)', background: on ? 'var(--accent-bg)' : 'transparent'}}>
-                            <input type="checkbox" checked={on} onChange={() => toggleProduct(p.id)} style={{width:16, height:16, accentColor:'var(--accent)'}}/>
+                          <label key={p.id} style={{display:'flex', alignItems:'center', gap:10, padding:'9px 14px', cursor:'pointer', borderBottom:'1px solid var(--line)', background: on ? 'var(--brand-bg)' : 'transparent'}}>
+                            <input type="checkbox" checked={on} onChange={() => toggleProduct(p.id)} style={{width:16, height:16, accentColor:'var(--brand)'}}/>
                             <span style={{flex:1, font:'500 14px var(--font-ui)'}}>{p.name}</span>
                             <span className="mono" style={{font:'500 12px var(--font-mono)', color:'var(--ink-3)'}}>{p.unit}</span>
                           </label>
@@ -390,7 +390,7 @@ function OrgDrawer({ title, org, owner, editing = false, onClose, onSubmit, onTo
           ) : <span/>}
           <div style={{display:'flex', gap:8}}>
             <button className="btn btn--ghost" onClick={onClose}>ביטול</button>
-            <button className="btn btn--accent" onClick={submit}>{editing ? 'שמור שינויים' : 'צור ארגון ומשתמש'}</button>
+            <button className="btn btn--brand" onClick={submit}>{editing ? 'שמור שינויים' : 'צור ארגון ומשתמש'}</button>
           </div>
         </div>
       </div>

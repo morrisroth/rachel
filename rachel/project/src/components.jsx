@@ -87,7 +87,7 @@ export function StatusBlock({ status, lastReportMs }) {
   };
   const m = map[status] || map.missing;
   return (
-    <div className={`banner ${m.cls}`} style={{borderRadius:'10px', padding:'16px 18px'}}>
+    <div className={`banner ${m.cls}`} style={{borderRadius:'var(--r-3)', padding:'16px 18px'}}>
       <div style={{flex:'0 0 auto', marginTop:2}}><Icon name={m.icon} size={20} stroke={2}/></div>
       <div style={{flex:'1 1 auto'}}>
         <div style={{font:'600 16px var(--font-ui)', lineHeight:1.25}}>{m.title}</div>

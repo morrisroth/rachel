@@ -70,10 +70,10 @@ export function AppHQ() {
 
   if (loading) {
     return (
-      <div style={{minHeight:'100vh', display:'grid', placeItems:'center', background:'oklch(14% 0.010 80)'}}>
+      <div style={{minHeight:'100vh', display:'grid', placeItems:'center', background:'var(--paper)'}}>
         <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:16}}>
-          <div style={{width:36, height:36, border:'3px solid oklch(32% 0.010 80)', borderTopColor:'oklch(80% 0.008 80)', borderRadius:'50%', animation:'spin 0.7s linear infinite'}}/>
-          <div style={{font:'500 14px var(--font-ui)', color:'oklch(55% 0.010 80)'}}>טוען נתונים…</div>
+          <div style={{width:36, height:36, border:'3px solid var(--line)', borderTopColor:'var(--ink)', borderRadius:'50%', animation:'spin 0.7s linear infinite'}}/>
+          <div style={{font:'500 14px var(--font-ui)', color:'var(--ink-2)'}}>טוען נתונים…</div>
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>

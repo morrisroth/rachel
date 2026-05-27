@@ -370,9 +370,6 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
             <Icon name="spark" size={15}/> אפס לקטלוג הארגון
           </button>
         )}
-        <button className="btn btn--ghost" onClick={addFreeLine} style={{flex:'0 0 auto'}}>
-          <Icon name="plus" size={15}/> הוסף מוצר חופשי
-        </button>
         <label className="btn btn--ghost" style={{flex:'0 0 auto', cursor:'pointer'}}>
           <Icon name="download" size={15}/> ייבוא מאקסל
           <input ref={excelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onExcelChange}/>
@@ -402,9 +399,7 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
             <LineCard key={l.key} line={l} index={idx} errors={errors} active={activeKey === l.key}
               onFocus={() => setActiveKey(l.key)}
               onChange={(patch) => updateLine(l.key, patch)}
-              onPickCatalog={(pid) => setProductCatalog(l.key, pid)}
-              onPickFree={(name) => setProductFree(l.key, name)}
-              onRemove={!l.builtin && lines.length > 1 ? () => removeLine(l.key) : null}
+              onRemove={null}
               onRestoreYesterday={yesterdayLine ? () => updateLine(l.key, {
                 current_stock:   String(yesterdayLine.current_stock),
                 incoming_stock:  String(yesterdayLine.incoming_stock),
@@ -514,49 +509,29 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
   );
 }
 
-function LineCard({ line, index, errors, active, onFocus, onChange, onPickCatalog, onPickFree, onRemove, onRestoreYesterday }) {
+function LineCard({ line, index, errors, active, onFocus, onChange, onRemove, onRestoreYesterday }) {
   const isFree = line.product?.kind === 'free';
   const unit = line.unit;
   const prod = PRODUCTS.find(p => p.id === line.product?.product_id);
+  const cat  = CATEGORIES.find(c => c.id === (line.category_id || prod?.category_id));
   const allowedUnits = isFree ? ALL_UNITS : (prod?.allowed_units || (unit ? [unit] : []));
+  const prodName = isFree ? line.product?.name : (prod?.name || '—');
   return (
     <div className={`card ${active ? 'row-hl' : ''}`} style={{padding:14, display:'flex', flexDirection:'column', gap:12}} onFocus={onFocus} onClick={onFocus}>
       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:8}}>
         <div style={{display:'flex', alignItems:'center', gap:8, minWidth:0}}>
           <span className="mono" style={{color:'var(--ink-3)', fontSize:11, padding:'2px 7px', background:'var(--bg-2)', borderRadius:4, whiteSpace:'nowrap'}}>#{String(index+1).padStart(2,'0')}</span>
-          <span style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)', whiteSpace:'nowrap'}}>שורת מוצר</span>
+          <span style={{font:'700 14px var(--font-ui)', color:'var(--ink)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{prodName}</span>
+          {cat && <span className="chip" style={{fontSize:10.5, flexShrink:0}}>{cat.short}</span>}
         </div>
-        <div style={{display:'flex', gap:4}}>
+        <div style={{display:'flex', gap:4, flexShrink:0}}>
           {onRestoreYesterday && (
             <button title="שחזר נתוני אמש לשורה זו" className="btn btn--ghost btn--sm" onClick={onRestoreYesterday} style={{padding:'6px 8px', fontSize:11, gap:4}}>
               <Icon name="copy" size={13}/> אמש
             </button>
           )}
-          {onRemove && <button className="btn btn--ghost btn--sm" onClick={onRemove} style={{padding:'6px 8px'}}><Icon name="trash" size={13}/></button>}
         </div>
       </div>
-      <div>
-        <label className="label">מוצר</label>
-        {isFree ? (
-          <input className="input" autoFocus={!line.product.name} placeholder="הקלד שם מוצר חופשי…" maxLength={80}
-            value={line.product.name || ''}
-            onChange={e => onChange({ product: { kind: 'free', name: e.target.value } })}/>
-        ) : (
-          <ProductCombobox value={line.product} products={PRODUCTS} categories={CATEGORIES}
-            onChange={(v) => onPickCatalog(v.product_id)} onFreeText={(name) => onPickFree(name)}/>
-        )}
-        {errors[line.key + ':product'] && <ErrorLabel text={errors[line.key + ':product']}/>}
-      </div>
-      {isFree && (
-        <div>
-          <label className="label">משרד ממשלתי (קטגוריה)</label>
-          <select className="select" value={line.category_id || ''} onChange={e => onChange({ category_id: Number(e.target.value) })}>
-            <option value="">— בחר משרד —</option>
-            {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          {errors[line.key + ':category'] && <ErrorLabel text={errors[line.key + ':category']}/>}
-        </div>
-      )}
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
         <div>
           <label className="label">מלאי נוכחי</label>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications, dbInsertReport, dbFetchAppSettings, dbSaveAppSetting } from './data.js';
+import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications, dbInsertReport, dbFetchAppSettings, dbSaveAppSetting, dbSendEmail } from './data.js';
 import { Icon, Crest, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
 import { OrgsView } from './orgs.jsx';
 
@@ -25,6 +25,7 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
         {tab === 'mode'    && <ModeView mode={mode} onSetMode={onSetMode}/>}
         {tab === 'notify'  && <NotifyView user={user} orgs={orgs} notifications={notifications}
                                onSend={async (n) => { await dbSendNotification(n); const all = await dbFetchNotifications(); setNotifications(all); }}/>}
+        {tab === 'email'   && <EmailView user={user} orgs={orgs} users={users}/>}
         {tab === 'audit'   && <AuditView log={exportLog} users={users}/>}
       </main>
 
@@ -36,6 +37,7 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
             { id:'orgs',    icon:'user',     label:'ניהול ארגונים' },
             { id:'export',  icon:'download', label:'ייצוא נתונים ארצי' },
             { id:'notify',  icon:'bell',     label:'שליחת התראות' },
+            { id:'email',   icon:'mail',     label:'שליחת מיילים' },
             { id:'mode',    icon:'shield',   label:'מצב לאומי' },
             { id:'audit',   icon:'history',  label:'יומן ייצוא ופעולות' },
           ].map(n => (
@@ -747,6 +749,196 @@ function NotifyView({ user, orgs, notifications, onSend }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+const DEFAULT_SUBJECT = 'תזכורת דיווח מלאי — מערכת רחל';
+const DEFAULT_BODY = `שלום {שם_ארגון},
+
+זוהי תזכורת לדיווח המלאי התקופתי במסגרת מערכת רחל.
+
+אנא היכנסו למערכת ומלאו את הדיווח בהקדם.
+
+בברכה,
+מטה החירום הלאומי`;
+
+function EmailView({ user, orgs, users }) {
+  const [subject,   setSubject]   = useState(DEFAULT_SUBJECT);
+  const [body,      setBody]      = useState(DEFAULT_BODY);
+  const [target,    setTarget]    = useState('all');
+  const [orgId,     setOrgId]     = useState('');
+  const [catId,     setCatId]     = useState('');
+  const [orgEmails, setOrgEmails] = useState({});
+  const [editEmail, setEditEmail] = useState(null);
+  const [busy,      setBusy]      = useState(false);
+  const [results,   setResults]   = useState(null);
+  const [err,       setErr]       = useState('');
+
+  useEffect(() => {
+    dbFetchAppSettings().then(s => {
+      try { if (s.org_emails) setOrgEmails(JSON.parse(s.org_emails)); } catch {}
+      if (s.email_subject) setSubject(s.email_subject);
+      if (s.email_body)    setBody(s.email_body);
+    }).catch(() => {});
+  }, []);
+
+  async function saveTemplate() {
+    await dbSaveAppSetting('email_subject', subject);
+    await dbSaveAppSetting('email_body', body);
+  }
+
+  async function saveOrgEmail(id, email) {
+    const updated = { ...orgEmails, [id]: email };
+    setOrgEmails(updated);
+    await dbSaveAppSetting('org_emails', JSON.stringify(updated));
+    setEditEmail(null);
+  }
+
+  function buildHtml(orgName) {
+    const text = body.replace(/\{שם_ארגון\}/g, orgName);
+    return `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.7;max-width:600px">
+      ${text.split('\n').map(l => l ? `<p style="margin:0 0 10px">${l}</p>` : '<br/>').join('')}
+    </div>`;
+  }
+
+  async function send() {
+    setErr(''); setBusy(true); setResults(null);
+    await saveTemplate();
+
+    let targets = [];
+    if (target === 'all')  targets = orgs.filter(o => o.active);
+    else if (target === 'cat')  targets = orgs.filter(o => o.active && o.cat_id === Number(catId));
+    else if (target === 'org')  targets = orgs.filter(o => o.id === Number(orgId));
+
+    const ok = [], failed = [];
+    for (const org of targets) {
+      const email = orgEmails[org.id];
+      if (!email) { failed.push({ org: org.name, reason: 'אין כתובת מייל' }); continue; }
+      try {
+        await dbSendEmail({ to: email, subject, html: buildHtml(org.name) });
+        ok.push(org.name);
+      } catch(e) { failed.push({ org: org.name, reason: e.message }); }
+    }
+    setResults({ ok, failed });
+    setBusy(false);
+  }
+
+  const targetOrgs = target === 'all' ? orgs.filter(o => o.active)
+    : target === 'cat' ? orgs.filter(o => o.active && o.cat_id === Number(catId))
+    : orgs.filter(o => o.id === Number(orgId));
+
+  const missingEmails = targetOrgs.filter(o => !orgEmails[o.id]).length;
+
+  return (
+    <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:900}}>
+      <PageHeader title="שליחת מיילים לארגונים" sub={`נשלח מ־morisiusmoris@gmail.com · ניתן לערוך תבנית ולשלוח לכלל הארגונים או לחלקם`}/>
+
+      {/* Recipients */}
+      <div className="card" style={{padding:20, display:'flex', flexDirection:'column', gap:14}}>
+        <div style={{font:'600 14px var(--font-ui)'}}>נמענים</div>
+        <div style={{display:'flex', gap:12, flexWrap:'wrap'}}>
+          {[{v:'all',l:'כל הארגונים'},{v:'cat',l:'לפי משרד'},{v:'org',l:'ארגון ספציפי'}].map(o => (
+            <label key={o.v} style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',font:'500 14px var(--font-ui)'}}>
+              <input type="radio" name="etarget" value={o.v} checked={target===o.v} onChange={()=>setTarget(o.v)} style={{accentColor:'var(--ink)'}}/>
+              {o.l}
+            </label>
+          ))}
+        </div>
+        {target === 'cat' && (
+          <select className="select" value={catId} onChange={e=>setCatId(e.target.value)} style={{maxWidth:340}}>
+            <option value="">— בחר משרד —</option>
+            {CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        {target === 'org' && (
+          <select className="select" value={orgId} onChange={e=>setOrgId(e.target.value)} style={{maxWidth:340}}>
+            <option value="">— בחר ארגון —</option>
+            {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        )}
+        {targetOrgs.length > 0 && (
+          <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>
+            {targetOrgs.length} ארגונים נבחרו
+            {missingEmails > 0 && <span style={{color:'var(--warn)', marginInlineStart:10}}>· ל-{missingEmails} חסרה כתובת מייל</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Email addresses per org */}
+      <div className="card" style={{overflow:'hidden'}}>
+        <div style={{padding:'12px 16px', borderBottom:'1px solid var(--line)', font:'600 13px var(--font-ui)'}}>כתובות מייל לארגונים</div>
+        <table className="tbl" style={{fontSize:13}}>
+          <thead><tr><th>ארגון</th><th>כתובת מייל</th><th style={{width:80}}></th></tr></thead>
+          <tbody>
+            {orgs.filter(o=>o.active).map(o => (
+              <tr key={o.id}>
+                <td style={{fontWeight:500}}>{o.name}</td>
+                <td>
+                  {editEmail === o.id ? (
+                    <form onSubmit={e=>{e.preventDefault(); saveOrgEmail(o.id, e.target.email.value);}} style={{display:'flex',gap:6}}>
+                      <input name="email" type="email" className="input" defaultValue={orgEmails[o.id]||''} placeholder="example@company.com" style={{flex:1}} autoFocus/>
+                      <button type="submit" className="btn btn--accent btn--sm">שמור</button>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={()=>setEditEmail(null)}>ביטול</button>
+                    </form>
+                  ) : (
+                    <span style={{color: orgEmails[o.id] ? 'var(--ink)' : 'var(--ink-3)'}}>
+                      {orgEmails[o.id] || <em>לא הוגדר</em>}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {editEmail !== o.id && (
+                    <button className="btn btn--ghost btn--sm" onClick={()=>setEditEmail(o.id)}>
+                      <Icon name="plus" size={12}/> {orgEmails[o.id] ? 'ערוך' : 'הוסף'}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Template editor */}
+      <div className="card" style={{padding:20, display:'flex', flexDirection:'column', gap:14}}>
+        <div style={{font:'600 14px var(--font-ui)'}}>תבנית המייל <span style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>· השתמש ב-{'{שם_ארגון}'} לשם הארגון</span></div>
+        <div style={{display:'flex', flexDirection:'column', gap:8}}>
+          <label style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>נושא</label>
+          <input className="input" value={subject} onChange={e=>setSubject(e.target.value)} placeholder="נושא המייל"/>
+        </div>
+        <div style={{display:'flex', flexDirection:'column', gap:8}}>
+          <label style={{font:'600 13px var(--font-ui)', color:'var(--ink-2)'}}>גוף ההודעה</label>
+          <textarea className="input" rows={10} value={body} onChange={e=>setBody(e.target.value)} style={{resize:'vertical', fontFamily:'var(--font-ui)', lineHeight:1.7}}/>
+        </div>
+        <button className="btn btn--ghost btn--sm" style={{alignSelf:'flex-start'}} onClick={saveTemplate}>
+          <Icon name="check" size={13}/> שמור תבנית
+        </button>
+      </div>
+
+      {/* Send button */}
+      {err && <div className="banner banner--bad"><Icon name="alert" size={16}/> {err}</div>}
+      {results && (
+        <div className={`banner ${results.failed.length===0?'banner--ok':'banner--warn'} anim-in`}>
+          <Icon name="check" size={18} stroke={2.2}/>
+          <div>
+            <div style={{font:'500 14px var(--font-ui)'}}>
+              {results.ok.length > 0 && `נשלח ל-${results.ok.length} ארגונים בהצלחה.`}
+              {results.failed.length > 0 && ` ${results.failed.length} נכשלו.`}
+            </div>
+            {results.failed.length > 0 && (
+              <div style={{font:'400 12px var(--font-ui)', marginTop:4}}>
+                {results.failed.map(f=>`${f.org}: ${f.reason}`).join(' · ')}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <button className="btn btn--accent btn--lg" style={{alignSelf:'flex-start', minWidth:220}}
+        disabled={busy || (target==='org' && !orgId) || (target==='cat' && !catId)}
+        onClick={send}>
+        {busy ? 'שולח…' : <><Icon name="mail" size={16}/> שלח מייל ל{target==='all'?'כל הארגונים':target==='cat'?'משרד נבחר':'ארגון נבחר'}</>}
+      </button>
     </div>
   );
 }

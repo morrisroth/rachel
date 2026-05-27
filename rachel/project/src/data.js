@@ -14,7 +14,7 @@ export const PRODUCTS = [
   { id: 102, category_id: 1, name: 'אורז לבן',                       unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
   { id: 103, category_id: 1, name: 'שמן חמניות',                     unit: 'ק"ל',    allowed_units: ['ק"ל', 'ליטר', 'יחידות'] },
   { id: 104, category_id: 1, name: 'סוכר לבן',                       unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
-  { id: 105, category_id: 1, name: 'מים מינרליים — בקבוקים 1.5 ליטר', unit: 'יחידות', allowed_units: ['יחידות', 'משטח', 'טון'] },
+  { id: 105, category_id: 1, name: 'מים מינרליים — בקבוקים 1.5 ליטר', unit: 'יחידות', allowed_units: ['יחידות', 'משטח'] },
   { id: 201, category_id: 2, name: 'סולר תעשייתי',                   unit: 'ק"ל',    allowed_units: ['ק"ל', 'ליטר', 'טון'] },
   { id: 202, category_id: 2, name: 'בנזין 95',                       unit: 'ק"ל',    allowed_units: ['ק"ל', 'ליטר', 'טון'] },
   { id: 203, category_id: 2, name: 'גז בישול (LPG)',                 unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
@@ -22,7 +22,7 @@ export const PRODUCTS = [
   { id: 302, category_id: 3, name: 'מספוא כוספאות',                  unit: 'טון',     allowed_units: ['טון', 'ק"ל', 'קג'] },
   { id: 401, category_id: 4, name: 'מכשירי הנשמה',                   unit: 'יחידות', allowed_units: ['יחידות'] },
   { id: 402, category_id: 4, name: 'מנות דם — O שלילי',             unit: 'מנות',   allowed_units: ['מנות', 'יחידות'] },
-  { id: 403, category_id: 4, name: 'חמצן נוזלי',                     unit: 'ק"ל',    allowed_units: ['ק"ל', 'ליטר', 'טון'] },
+  { id: 403, category_id: 4, name: 'חמצן נוזלי',                     unit: 'ק"ל',    allowed_units: ['ק"ל', 'ליטר', 'מ"ק'] },
 ];
 
 export const ORG_TYPES = [
@@ -235,6 +235,21 @@ export async function dbFetchAppSettings() {
 
 export async function dbSaveAppSetting(key, value) {
   await supabase.from('app_settings').upsert({ key, value }, { onConflict: 'key' });
+}
+
+const EMAIL_API = '/api/email';
+
+export async function dbSendEmail({ to, subject, html }) {
+  const res = await fetch(`${EMAIL_API}/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, subject, html }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
 }
 
 export async function dbUpdateOrganization(id, patch) {

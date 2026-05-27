@@ -115,7 +115,7 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
   const tabContent = (
     <>
       {tab === 'report' && (
-        <ReportTab user={user} org={org} history={history} dailyOk={dailyOk} mode={mode} viewport={viewport}
+        <ReportTab user={user} org={org} history={history} dailyOk={dailyOk} mode={mode} viewport={viewport} isPc={isPc}
                    onSubmit={(payload) => { onSubmit(payload); showToast('הדיווח היומי שלך נקלט בהצלחה', 'ok'); setTab('history'); }} />
       )}
       {tab === 'history' && <HistoryTab user={user} history={history} isPc={isPc}/>}
@@ -239,7 +239,7 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
   );
 }
 
-function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'phone' }) {
+function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'phone', isPc: isPcProp }) {
   const [lines, setLines] = useState(() => {
     const linked = org?.linked_products || [];
     if (linked.length === 0) return [emptyLine()];
@@ -294,7 +294,7 @@ function ReportTab({ user, org, history, dailyOk, mode, onSubmit, viewport = 'ph
   function removeImage() { setImageFile(null); setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }
 
   const lastReport = history[0];
-  const isPc = viewport === 'fullscreen';
+  const isPc = isPcProp !== undefined ? isPcProp : viewport === 'fullscreen';
 
   const updateLine = (key, patch) => setLines(prev => prev.map(l => l.key === key ? { ...l, ...patch } : l));
   const removeLine = (key) => setLines(prev => prev.length === 1 ? prev : prev.filter(l => l.key !== key));

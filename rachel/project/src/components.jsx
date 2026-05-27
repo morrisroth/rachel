@@ -81,7 +81,7 @@ export function reportIsWithin24h(ms) {
 
 export function StatusBlock({ status, lastReportMs }) {
   const map = {
-    ok:      { cls: 'banner--ok',   icon: 'check', title: 'הדיווח היומי שלך נקלט בהצלחה', sub: lastReportMs ? `דווח אחרון: ${formatDate(lastReportMs)} (${relTime(lastReportMs)})` : '' },
+    ok:      { cls: 'banner--ok',   icon: 'check', title: 'הדיווח שלך נקלט בהצלחה', sub: lastReportMs ? `דווח אחרון: ${formatDate(lastReportMs)} (${relTime(lastReportMs)})` : '' },
     missing: { cls: 'banner--bad',  icon: 'alert', title: 'חסר דיווח להיום', sub: 'נא לעדכן מלאים בהקדם — מצב חירום פעיל' },
     soon:    { cls: 'banner--warn', icon: 'clock', title: 'הדיווח נשלח אך הצטברו שינויים', sub: 'הוסף עדכון נקודתי לפני סוף היום' },
   };

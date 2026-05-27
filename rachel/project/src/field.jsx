@@ -116,7 +116,7 @@ export function FieldShell({ user, org, history, notifications = [], onSubmit, o
     <>
       {tab === 'report' && (
         <ReportTab user={user} org={org} history={history} dailyOk={dailyOk} mode={mode} viewport={viewport} isPc={isPc}
-                   onSubmit={(payload) => { onSubmit(payload); showToast('הדיווח היומי שלך נקלט בהצלחה', 'ok'); setTab('history'); }} />
+                   onSubmit={(payload) => { onSubmit(payload); showToast('הדיווח שלך נקלט בהצלחה', 'ok'); setTab('history'); }} />
       )}
       {tab === 'history' && <HistoryTab user={user} history={history} isPc={isPc}/>}
       {tab === 'profile' && <ProfileTab user={user} org={org} onLogout={onLogout}/>}

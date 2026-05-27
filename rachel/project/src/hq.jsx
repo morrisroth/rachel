@@ -22,7 +22,7 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
         {tab === 'monitor' && <MonitorView monitor={monitor} mode={mode} orgs={orgs} onRefresh={onRefreshMonitor}/>}
         {tab === 'orgs'    && <OrgsView orgs={orgs} users={users} onAdd={onAddOrganization} onUpdate={onUpdateOrganization}/>}
         {tab === 'export'  && <ExportView onExport={doExport} mode={mode} orgs={orgs} user={user}/>}
-        {tab === 'mode'    && <ModeView mode={mode} onSetMode={onSetMode}/>}
+        {tab === 'mode'    && <ModeView mode={mode} onSetMode={onSetMode} users={users}/>}
         {tab === 'notify'  && <NotifyView user={user} orgs={orgs} notifications={notifications}
                                onSend={async (n) => { await dbSendNotification(n); const all = await dbFetchNotifications(); setNotifications(all); }}/>}
         {tab === 'email'   && <EmailView user={user} orgs={orgs} users={users}/>}
@@ -982,24 +982,75 @@ function EmailView({ user, orgs, users }) {
   );
 }
 
-function ModeView({ mode, onSetMode }) {
+function ModeView({ mode, onSetMode, users }) {
   const [pending, setPending] = useState(mode);
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState('');
   const [saved, setSaved] = useState(false);
+  const [emailsSent, setEmailsSent] = useState(0);
 
   useEffect(() => { setPending(mode); }, [mode]);
+
+  function buildModeEmail(newMode) {
+    const isEmergency = newMode === 'emergency';
+    const headerBg = isEmergency
+      ? 'linear-gradient(135deg,#b91c1c,#7f1d1d)'
+      : 'linear-gradient(135deg,#1a4fa0,#143d7a)';
+    const title = isEmergency ? '⚠️ שינוי מצב לאומי — חירום' : '✓ שינוי מצב לאומי — שגרה';
+    const bodyText = isEmergency
+      ? 'המצב הלאומי שונה ל<strong>חירום</strong>. החל מעכשיו נדרש <strong>דיווח מלאי יומי</strong>. אנא היכנסו למערכת ועדכנו את נתוני המלאי בכל יום.'
+      : 'המצב הלאומי שונה ל<strong>שגרה</strong>. החל מעכשיו נדרש <strong>דיווח מלאי שבועי</strong> (אחת לשבוע, בכל יום ראשון).';
+    const urgencyBox = isEmergency
+      ? `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:14px 18px;margin:16px 0">
+          <strong style="color:#b91c1c;font-size:14px">⚠️ מצב חירום לאומי</strong>
+          <p style="margin:6px 0 0;font-size:13px;color:#7f1d1d">דיווח יומי הוא חובה. אי-דיווח עלול לפגוע בתיאום הלאומי.</p>
+        </div>`
+      : `<div style="background:#f0f7f0;border:1px solid #c3e6c3;border-radius:8px;padding:14px 18px;margin:16px 0">
+          <strong style="color:#1a6b3a;font-size:14px">✓ חזרה לשגרה</strong>
+          <p style="margin:6px 0 0;font-size:13px;color:#145530">דיווח שבועי, כל יום ראשון.</p>
+        </div>`;
+    return `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:20px;background:#f5f5f5;font-family:Arial,sans-serif">
+<div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.1)">
+  <div style="background:${headerBg};padding:28px 32px">
+    <div style="color:rgba(255,255,255,.7);font-size:13px;margin-bottom:6px">מערכת רחל — דיווח מלאי לאומי</div>
+    <h1 style="color:white;margin:0;font-size:22px">${title}</h1>
+  </div>
+  <div style="padding:28px 32px">
+    <p style="font-size:15px;color:#555;line-height:1.7">${bodyText}</p>
+    ${urgencyBox}
+    <div style="text-align:center">
+      <a href="http://213.199.53.73:4001" style="display:inline-block;background:#1a4fa0;color:white;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:15px;font-weight:bold;margin:20px 0">כניסה למערכת הדיווח ←</a>
+    </div>
+  </div>
+  <div style="padding:16px 32px;text-align:center;color:#aaa;font-size:12px;border-top:1px solid #eee">מערכת רחל — מטה החירום הלאומי | הודעה אוטומטית, אין להשיב למייל זה</div>
+</div></body></html>`;
+  }
 
   async function doApply() {
     setSaving(true);
     setSaveErr('');
     setSaved(false);
+    setEmailsSent(0);
     try {
       await onSetMode(pending);
       setConfirming(false);
+
+      // Send state-change email to all field users with email addresses
+      const subject = pending === 'emergency'
+        ? '⚠️ שינוי מצב לאומי לחירום — נדרש דיווח יומי — מערכת רחל'
+        : '✓ שינוי מצב לאומי לשגרה — דיווח שבועי — מערכת רחל';
+      const html = buildModeEmail(pending);
+      const recipients = (users || []).filter(u => u.role === 'FIELD_USER' && u.email);
+      let sent = 0;
+      for (const u of recipients) {
+        await dbSendEmail({ to: u.email, subject, html }).catch(() => {});
+        sent++;
+      }
+      setEmailsSent(sent);
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setSaved(false), 6000);
     } catch(e) {
       setSaveErr('שגיאה בשמירה: ' + (e?.message || e));
     }
@@ -1033,7 +1084,14 @@ function ModeView({ mode, onSetMode }) {
       {saved && (
         <div className="banner banner--ok anim-in">
           <Icon name="check" size={18} stroke={2.2}/>
-          <div style={{font:'500 14px var(--font-ui)'}}>המצב הלאומי עודכן ונשמר בהצלחה.</div>
+          <div>
+            <div style={{font:'600 14px var(--font-ui)'}}>המצב הלאומי עודכן ונשמר בהצלחה.</div>
+            <div style={{font:'400 12px var(--font-ui)', marginTop:3, opacity:.85}}>
+              {emailsSent > 0
+                ? `מייל עדכון נשלח ל-${emailsSent} נציגי שטח.`
+                : 'לא נשלחו מיילים — אין נציגי שטח עם כתובת מייל מוגדרת.'}
+            </div>
+          </div>
         </div>
       )}
       {saveErr && (

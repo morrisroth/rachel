@@ -18,13 +18,14 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
 
   const initials = user.full_name.split(' ').map(s => s[0]).join('').slice(0, 2);
   const navItems = [
-    { id:'monitor', label:'סקירה' },
-    { id:'orgs',    label:'ארגונים' },
-    { id:'export',  label:'ייצוא' },
-    { id:'notify',  label:'התראות' },
-    { id:'email',   label:'מיילים' },
-    { id:'mode',    label:'מצב' },
-    { id:'audit',   label:'יומן' },
+    { id:'monitor',   label:'סקירה' },
+    { id:'analytics', label:'ניתוח' },
+    { id:'orgs',      label:'ארגונים' },
+    { id:'export',    label:'ייצוא' },
+    { id:'notify',    label:'התראות' },
+    { id:'email',     label:'מיילים' },
+    { id:'mode',      label:'מצב' },
+    { id:'audit',     label:'יומן' },
   ];
 
   return (
@@ -68,8 +69,9 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
 
       {/* Content */}
       <main style={{flex:'1 1 auto', padding:'28px 32px 64px', maxWidth:1320, width:'100%', margin:'0 auto', boxSizing:'border-box'}}>
-        {tab === 'monitor' && <MonitorView monitor={monitor} mode={mode} orgs={orgs} onRefresh={onRefreshMonitor}/>}
-        {tab === 'orgs'    && <OrgsView orgs={orgs} users={users} onAdd={onAddOrganization} onUpdate={onUpdateOrganization}/>}
+        {tab === 'monitor'   && <MonitorView monitor={monitor} mode={mode} orgs={orgs} onRefresh={onRefreshMonitor}/>}
+        {tab === 'analytics' && <AnalyticsView monitor={monitor} orgs={orgs} mode={mode}/>}
+        {tab === 'orgs'      && <OrgsView orgs={orgs} users={users} onAdd={onAddOrganization} onUpdate={onUpdateOrganization}/>}
         {tab === 'export'  && <ExportView onExport={doExport} mode={mode} orgs={orgs} user={user}/>}
         {tab === 'mode'    && <ModeView mode={mode} onSetMode={onSetMode} users={users}/>}
         {tab === 'notify'  && <NotifyView user={user} orgs={orgs} notifications={notifications}
@@ -1132,6 +1134,272 @@ function LiveClock() {
     <span style={{font:'500 12px var(--font-mono)', color:'var(--ink-2)', letterSpacing:'.04em'}}>
       {pad(now.getHours())}:{pad(now.getMinutes())} · {pad(now.getDate())}.{pad(now.getMonth()+1)}.{now.getFullYear()}
     </span>
+  );
+}
+
+function AnalyticsView({ monitor, orgs, mode }) {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    dbFetchReportsForExport(null, null)
+      .then(r => { setReports(r || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const threshold = mode === 'emergency' ? 24 : 7 * 24;
+
+  const enriched = orgs
+    .filter(o => o.active && o.cat_id !== null)
+    .map(o => {
+      const m = monitor.find(r => r.org_id === o.id);
+      const hoursAgo = m ? (Date.now() - m.last) / 3600000 : Infinity;
+      const dead = hoursAgo > threshold;
+      const cat = CATEGORIES.find(c => c.id === o.cat_id);
+      return { ...o, cat, dead, last: m?.last || null };
+    });
+
+  const total    = enriched.length;
+  const reported = enriched.filter(o => !o.dead).length;
+  const deadCount = total - reported;
+  const compliancePct = total > 0 ? Math.round(reported / total * 100) : 0;
+
+  // Compliance by ministry
+  const catCompliance = CATEGORIES.map(cat => {
+    const catOrgs = enriched.filter(o => o.cat_id === cat.id);
+    const catReported = catOrgs.filter(o => !o.dead).length;
+    return { cat, total: catOrgs.length, reported: catReported,
+             pct: catOrgs.length > 0 ? Math.round(catReported / catOrgs.length * 100) : 0 };
+  }).filter(s => s.total > 0);
+
+  // Aggregate inventory per product
+  const productTotals = {};
+  for (const rep of reports) {
+    for (const line of (rep.lines || [])) {
+      const pid = line.product_id;
+      if (!pid) continue;
+      if (!productTotals[pid]) productTotals[pid] = { current: 0, incoming: 0, orgs: new Set() };
+      productTotals[pid].current  += Number(line.current_stock)  || 0;
+      productTotals[pid].incoming += Number(line.incoming_stock) || 0;
+      productTotals[pid].orgs.add(rep.organization_id);
+    }
+  }
+
+  const topProducts = Object.entries(productTotals)
+    .map(([pid, data]) => {
+      const prod = PRODUCTS.find(p => p.id === Number(pid));
+      const cat  = CATEGORIES.find(c => c.id === prod?.category_id);
+      return { prod, cat, current: data.current, incoming: data.incoming, orgCount: data.orgs.size };
+    })
+    .filter(p => p.prod)
+    .sort((a, b) => b.current - a.current)
+    .slice(0, 12);
+
+  const maxStock = topProducts[0]?.current || 1;
+
+  // Inventory totals by ministry
+  const catInventory = CATEGORIES.map(cat => {
+    let current = 0, incoming = 0;
+    for (const rep of reports) {
+      for (const line of (rep.lines || [])) {
+        const prod = PRODUCTS.find(p => p.id === line.product_id);
+        if ((line.category_id || prod?.category_id) === cat.id) {
+          current  += Number(line.current_stock)  || 0;
+          incoming += Number(line.incoming_stock) || 0;
+        }
+      }
+    }
+    return { cat, current, incoming };
+  }).filter(c => c.current > 0 || c.incoming > 0);
+
+  const maxCatStock = Math.max(...catInventory.map(c => c.current), 1);
+
+  return (
+    <div style={{display:'flex', flexDirection:'column', gap:24}}>
+      <PageHeader
+        tag="08 · ANALYTICS"
+        title="ניתוח מלאי לאומי"
+        sub="סיכום מצטבר של כלל דיווחי השטח · ציות, מלאי ומגמות"/>
+
+      {/* KPI strip */}
+      <div className="hq-kpis">
+        <Kpi label="ציות לדיווח" value={`${compliancePct}%`} accent={compliancePct >= 80 ? 'ok' : 'bad'}/>
+        <Kpi label="דיווחו בחלון הנדרש" value={`${reported} / ${total}`} accent="ok"/>
+        <Kpi label="שטחים מתים" value={deadCount} accent={deadCount > 0 ? 'bad' : 'ok'}/>
+        <Kpi label="מוצרים בקטלוג" value={PRODUCTS.length}/>
+      </div>
+
+      {/* Two-column: compliance + ministry inventory */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:20}}>
+
+        {/* Compliance bars by ministry */}
+        <div className="card" style={{padding:22, display:'flex', flexDirection:'column', gap:20}}>
+          <div>
+            <div className="tag" style={{color:'var(--brand)', marginBottom:4}}>ציות לפי משרד</div>
+            <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>אחוז ארגונים שדיווחו בחלון הנוכחי</div>
+          </div>
+          {catCompliance.map(s => (
+            <div key={s.cat.id}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:7}}>
+                <span style={{font:'600 13px var(--font-ui)'}}>{s.cat.name}</span>
+                <span style={{font:'600 12px var(--font-mono)', letterSpacing:'.04em',
+                  color: s.pct >= 80 ? 'var(--ok)' : s.pct >= 50 ? 'var(--warn)' : 'var(--bad)'}}>
+                  {s.reported}/{s.total} · {s.pct}%
+                </span>
+              </div>
+              <div style={{height:10, background:'var(--paper-2)', borderRadius:3, overflow:'hidden', border:'1px solid var(--line)'}}>
+                <div style={{width:`${s.pct}%`, height:'100%', borderRadius:3, transition:'width .5s ease',
+                  background: s.pct >= 80 ? 'var(--brand)' : s.pct >= 50 ? 'var(--warn)' : 'var(--bad)'}}/>
+              </div>
+            </div>
+          ))}
+
+          {/* Overall compliance donut-style ring */}
+          <div style={{marginTop:6, paddingTop:16, borderTop:'1px solid var(--line)', display:'flex', alignItems:'center', gap:16}}>
+            <div style={{position:'relative', width:56, height:56, flexShrink:0}}>
+              <svg width="56" height="56" viewBox="0 0 56 56">
+                <circle cx="28" cy="28" r="22" fill="none" stroke="var(--paper-2)" strokeWidth="8"/>
+                <circle cx="28" cy="28" r="22" fill="none"
+                  stroke={compliancePct >= 80 ? 'var(--brand)' : compliancePct >= 50 ? 'var(--warn)' : 'var(--bad)'}
+                  strokeWidth="8" strokeLinecap="round"
+                  strokeDasharray={`${compliancePct * 1.382} 138.2`}
+                  transform="rotate(-90 28 28)"/>
+              </svg>
+              <div style={{position:'absolute', inset:0, display:'grid', placeItems:'center',
+                font:'700 12px var(--font-mono)'}}>{compliancePct}%</div>
+            </div>
+            <div>
+              <div style={{font:'600 14px var(--font-ui)'}}>ציות כולל</div>
+              <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)', marginTop:2}}>
+                {reported} מתוך {total} ארגונים דיווחו
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Ministry inventory bars */}
+        <div className="card" style={{padding:22, display:'flex', flexDirection:'column', gap:20}}>
+          <div>
+            <div className="tag" style={{color:'var(--brand)', marginBottom:4}}>מלאי לפי משרד</div>
+            <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>סכום מלאי נוכחי מכלל הדיווחים</div>
+          </div>
+          {loading ? (
+            <div style={{display:'flex', alignItems:'center', gap:10, color:'var(--ink-3)', font:'400 13px var(--font-ui)'}}>
+              <div style={{width:14, height:14, border:'2px solid var(--line)', borderTopColor:'var(--ink)', borderRadius:'50%', animation:'spin .7s linear infinite'}}/>
+              טוען נתוני מלאי…
+            </div>
+          ) : catInventory.length === 0 ? (
+            <div style={{color:'var(--ink-3)', font:'400 13px var(--font-ui)'}}>אין נתוני מלאי עדיין.</div>
+          ) : catInventory.map(({ cat, current, incoming }) => {
+            const pct   = Math.round(current  / maxCatStock * 100);
+            const inPct = Math.round(incoming / maxCatStock * 100);
+            return (
+              <div key={cat.id}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:7}}>
+                  <span style={{font:'600 13px var(--font-ui)'}}>{cat.name}</span>
+                  <span style={{font:'500 11px var(--font-mono)', color:'var(--ink-3)'}}>
+                    {current.toLocaleString('he-IL')}
+                    {incoming > 0 && <span style={{color:'var(--brand-2)'}}> +{incoming.toLocaleString('he-IL')} בדרך</span>}
+                  </span>
+                </div>
+                <div style={{height:10, background:'var(--paper-2)', borderRadius:3, border:'1px solid var(--line)', position:'relative', overflow:'hidden'}}>
+                  <div style={{position:'absolute', width:`${pct}%`, height:'100%', background:'var(--brand)', borderRadius:3}}/>
+                  {incoming > 0 && (
+                    <div style={{position:'absolute', insetInlineStart:`${pct}%`, width:`${inPct}%`, height:'100%',
+                      background:'var(--brand-bg)', borderInlineStart:'1px dashed var(--brand-line)'}}/>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          <div style={{marginTop:6, paddingTop:16, borderTop:'1px solid var(--line)', display:'flex', gap:16}}>
+            <div style={{display:'flex', alignItems:'center', gap:6}}>
+              <div style={{width:12, height:12, borderRadius:2, background:'var(--brand)'}}/>
+              <span style={{font:'500 11px var(--font-ui)', color:'var(--ink-3)'}}>מלאי נוכחי</span>
+            </div>
+            <div style={{display:'flex', alignItems:'center', gap:6}}>
+              <div style={{width:12, height:12, borderRadius:2, background:'var(--brand-bg)', border:'1px dashed var(--brand-line)'}}/>
+              <span style={{font:'500 11px var(--font-ui)', color:'var(--ink-3)'}}>בדרך</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Top products bar chart */}
+      <div className="card" style={{overflow:'hidden'}}>
+        <div style={{padding:'16px 20px', borderBottom:'1px solid var(--line)', display:'flex', alignItems:'baseline', justifyContent:'space-between'}}>
+          <div>
+            <div className="tag" style={{color:'var(--brand)', marginBottom:2}}>TOP PRODUCTS · מוצרים מובילים</div>
+            <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>מדורגים לפי סכום מלאי נוכחי מכלל הדיווחים</div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{padding:'24px 20px', color:'var(--ink-3)', font:'400 13px var(--font-ui)', display:'flex', gap:10, alignItems:'center'}}>
+            <div style={{width:14, height:14, border:'2px solid var(--line)', borderTopColor:'var(--ink)', borderRadius:'50%', animation:'spin .7s linear infinite'}}/>
+            טוען…
+          </div>
+        ) : topProducts.length === 0 ? (
+          <div style={{padding:'24px 20px', color:'var(--ink-3)', font:'400 13px var(--font-ui)'}}>אין נתוני מלאי עדיין.</div>
+        ) : (
+          <div style={{padding:'14px 20px', display:'flex', flexDirection:'column', gap:14}}>
+            {topProducts.map(({ prod, cat, current, incoming, orgCount }, i) => {
+              const barPct = Math.round(current / maxStock * 100);
+              return (
+                <div key={prod.id} style={{display:'grid', gridTemplateColumns:'28px 1fr 90px', gap:14, alignItems:'center'}}>
+                  <span style={{font:'600 11px var(--font-mono)', color:'var(--ink-4)', letterSpacing:'.06em', textAlign:'end'}}>
+                    {String(i+1).padStart(2,'0')}
+                  </span>
+                  <div>
+                    <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:5}}>
+                      <span style={{font:'600 13.5px var(--font-ui)'}}>{prod.name}</span>
+                      {cat && <span className="chip" style={{fontSize:9.5, padding:'1px 5px'}}>{cat.short}</span>}
+                      <span style={{font:'500 10.5px var(--font-mono)', color:'var(--ink-3)', marginInlineStart:'auto'}}>
+                        {orgCount} ארגונים · {prod.unit}
+                      </span>
+                    </div>
+                    <div style={{height:7, background:'var(--paper-2)', borderRadius:3, overflow:'hidden', border:'1px solid var(--line)'}}>
+                      <div style={{width:`${barPct}%`, height:'100%', background:'var(--brand)', borderRadius:3, transition:'width .6s ease'}}/>
+                    </div>
+                  </div>
+                  <div style={{textAlign:'end'}}>
+                    <div style={{font:'700 15px var(--font-mono)', letterSpacing:'-.01em'}}>{current.toLocaleString('he-IL')}</div>
+                    {incoming > 0 && <div style={{font:'500 10px var(--font-mono)', color:'var(--brand-2)', marginTop:1}}>+{incoming.toLocaleString('he-IL')} בדרך</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Org compliance grid */}
+      <div className="card" style={{overflow:'hidden'}}>
+        <div style={{padding:'16px 20px', borderBottom:'1px solid var(--line)', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+          <div className="tag" style={{color:'var(--brand)'}}>ORG STATUS · מצב ציות ארגוני</div>
+          <div style={{font:'500 11px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.04em'}}>
+            {reported} / {total} דיווחו
+          </div>
+        </div>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(230px, 1fr))'}}>
+          {[...enriched].sort((a,b) => (a.dead ? 1 : -1) - (b.dead ? 1 : -1)).map(o => (
+            <div key={o.id} style={{padding:'11px 16px', borderBottom:'1px solid var(--hairline)', borderInlineEnd:'1px solid var(--hairline)', display:'flex', alignItems:'center', gap:10}}>
+              <div style={{width:7, height:7, borderRadius:'50%', flexShrink:0,
+                background: o.dead ? 'var(--bad)' : 'var(--ok)',
+                boxShadow: o.dead ? '0 0 0 2px var(--bad-bg)' : '0 0 0 2px oklch(88% 0.08 155 / .4)'}}/>
+              <div style={{minWidth:0, flex:1}}>
+                <div style={{font:'500 12.5px var(--font-ui)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.name}</div>
+                <div style={{font:'500 10px var(--font-mono)', color:'var(--ink-3)', marginTop:1, letterSpacing:'.03em'}}>
+                  {o.last ? relTime(o.last) : 'לא דיווח מעולם'}
+                </div>
+              </div>
+              {o.cat && <span className="chip" style={{fontSize:9.5, padding:'1px 5px', flexShrink:0}}>{o.cat.short}</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

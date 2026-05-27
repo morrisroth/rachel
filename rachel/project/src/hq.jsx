@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications, dbInsertReport, dbFetchAppSettings, dbSaveAppSetting, dbSendEmail } from './data.js';
+import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications, dbInsertReport, dbFetchAppSettings, dbSaveAppSetting, dbSendEmail, dbUpdateUser } from './data.js';
 import { Icon, Crest, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
 import { OrgsView } from './orgs.jsx';
 
@@ -764,34 +764,42 @@ const DEFAULT_BODY = `שלום {שם_ארגון},
 מטה החירום הלאומי`;
 
 function EmailView({ user, orgs, users }) {
-  const [subject,   setSubject]   = useState(DEFAULT_SUBJECT);
-  const [body,      setBody]      = useState(DEFAULT_BODY);
-  const [target,    setTarget]    = useState('all');
-  const [orgId,     setOrgId]     = useState('');
-  const [catId,     setCatId]     = useState('');
-  const [orgEmails, setOrgEmails] = useState({});
-  const [editEmail, setEditEmail] = useState(null);
-  const [busy,      setBusy]      = useState(false);
-  const [results,   setResults]   = useState(null);
-  const [err,       setErr]       = useState('');
+  const [subject,     setSubject]     = useState(DEFAULT_SUBJECT);
+  const [body,        setBody]        = useState(DEFAULT_BODY);
+  const [target,      setTarget]      = useState('all');
+  const [orgId,       setOrgId]       = useState('');
+  const [catId,       setCatId]       = useState('');
+  const [localEmails, setLocalEmails] = useState({});
+  const [editEmail,   setEditEmail]   = useState(null);
+  const [busy,        setBusy]        = useState(false);
+  const [results,     setResults]     = useState(null);
+  const [err,         setErr]         = useState('');
 
   useEffect(() => {
+    // Build email map from rachel_users.email (same source as cron reminders)
+    const map = {};
+    for (const u of users) {
+      if (u.role === 'FIELD_USER' && u.email && !map[u.organization_id]) {
+        map[u.organization_id] = u.email;
+      }
+    }
+    setLocalEmails(map);
     dbFetchAppSettings().then(s => {
-      try { if (s.org_emails) setOrgEmails(JSON.parse(s.org_emails)); } catch {}
       if (s.email_subject) setSubject(s.email_subject);
       if (s.email_body)    setBody(s.email_body);
     }).catch(() => {});
-  }, []);
+  }, [users]);
 
   async function saveTemplate() {
     await dbSaveAppSetting('email_subject', subject);
     await dbSaveAppSetting('email_body', body);
   }
 
-  async function saveOrgEmail(id, email) {
-    const updated = { ...orgEmails, [id]: email };
-    setOrgEmails(updated);
-    await dbSaveAppSetting('org_emails', JSON.stringify(updated));
+  async function saveOrgEmail(oId, email) {
+    const u = users.find(x => x.organization_id === oId && x.role === 'FIELD_USER');
+    if (!u) return;
+    await dbUpdateUser(u.id, { email: email.trim() || null });
+    setLocalEmails(prev => ({ ...prev, [oId]: email.trim() }));
     setEditEmail(null);
   }
 
@@ -813,7 +821,7 @@ function EmailView({ user, orgs, users }) {
 
     const ok = [], failed = [];
     for (const org of targets) {
-      const email = orgEmails[org.id];
+      const email = localEmails[org.id];
       if (!email) { failed.push({ org: org.name, reason: 'אין כתובת מייל' }); continue; }
       try {
         await dbSendEmail({ to: email, subject, html: buildHtml(org.name) });
@@ -828,7 +836,7 @@ function EmailView({ user, orgs, users }) {
     : target === 'cat' ? orgs.filter(o => o.active && o.cat_id === Number(catId))
     : orgs.filter(o => o.id === Number(orgId));
 
-  const missingEmails = targetOrgs.filter(o => !orgEmails[o.id]).length;
+  const missingEmails = targetOrgs.filter(o => !localEmails[o.id]).length;
 
   return (
     <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:900}}>
@@ -877,20 +885,20 @@ function EmailView({ user, orgs, users }) {
                 <td>
                   {editEmail === o.id ? (
                     <form onSubmit={e=>{e.preventDefault(); saveOrgEmail(o.id, e.target.email.value);}} style={{display:'flex',gap:6}}>
-                      <input name="email" type="email" className="input" defaultValue={orgEmails[o.id]||''} placeholder="example@company.com" style={{flex:1}} autoFocus/>
+                      <input name="email" type="email" className="input" defaultValue={localEmails[o.id]||''} placeholder="example@company.com" style={{flex:1}} autoFocus/>
                       <button type="submit" className="btn btn--accent btn--sm">שמור</button>
                       <button type="button" className="btn btn--ghost btn--sm" onClick={()=>setEditEmail(null)}>ביטול</button>
                     </form>
                   ) : (
-                    <span style={{color: orgEmails[o.id] ? 'var(--ink)' : 'var(--ink-3)'}}>
-                      {orgEmails[o.id] || <em>לא הוגדר</em>}
+                    <span style={{color: localEmails[o.id] ? 'var(--ink)' : 'var(--ink-3)'}}>
+                      {localEmails[o.id] || <em>לא הוגדר</em>}
                     </span>
                   )}
                 </td>
                 <td>
                   {editEmail !== o.id && (
                     <button className="btn btn--ghost btn--sm" onClick={()=>setEditEmail(o.id)}>
-                      <Icon name="plus" size={12}/> {orgEmails[o.id] ? 'ערוך' : 'הוסף'}
+                      <Icon name="plus" size={12}/> {localEmails[o.id] ? 'ערוך' : 'הוסף'}
                     </button>
                   )}
                 </td>

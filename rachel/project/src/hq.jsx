@@ -83,8 +83,24 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
   );
 }
 
+// Returns the start of the current reporting window as a timestamp.
+// Routine: last Sunday 00:00. Emergency: last 11:00 AM.
+function getWindowStart(mode) {
+  const now = new Date();
+  if (mode === 'emergency') {
+    const d = new Date(now);
+    d.setHours(11, 0, 0, 0);
+    if (now < d) d.setDate(d.getDate() - 1);
+    return d.getTime();
+  }
+  const d = new Date(now);
+  d.setDate(d.getDate() - d.getDay()); // back to Sunday (getDay()==0)
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 function MonitorView({ monitor, mode, orgs, onRefresh }) {
-  const threshold = mode === 'emergency' ? 24 : 7 * 24;
+  const windowStart = getWindowStart(mode);
 
   // Auto-refresh every 30 seconds
   const refreshRef = useRef(onRefresh);
@@ -118,7 +134,7 @@ function MonitorView({ monitor, mode, orgs, onRefresh }) {
       const m   = monitor.find(r => r.org_id === o.id);
       const cat = CATEGORIES.find(c => c.id === o.cat_id);
       const hoursAgo = m ? (Date.now() - m.last) / 3600000 : Infinity;
-      const dead = hoursAgo > threshold;
+      const dead = !m || m.last < windowStart;
       return { org_id: o.id, org: o, cat, hoursAgo, dead, last: m?.last || null, user: m?.user || '—' };
     });
 
@@ -186,7 +202,7 @@ function MonitorView({ monitor, mode, orgs, onRefresh }) {
                 </td>
                   <td>
                     {m.dead
-                      ? <span className="chip chip--bad"><Icon name="alert" size={11}/> שטח מת</span>
+                      ? <span className="chip chip--bad"><Icon name="alert" size={11}/> לא דיווח</span>
                       : <span className="chip chip--ok"><Icon name="check" size={11}/> דיווח תקין</span>}
                   </td>
                   <td>
@@ -1160,14 +1176,13 @@ function AnalyticsView({ monitor, orgs, mode }) {
       .catch(() => setLoading(false));
   }, []);
 
-  const threshold = mode === 'emergency' ? 24 : 7 * 24;
+  const windowStart = getWindowStart(mode);
 
   const enriched = orgs
     .filter(o => o.active && o.cat_id !== null)
     .map(o => {
       const m = monitor.find(r => r.org_id === o.id);
-      const hoursAgo = m ? (Date.now() - m.last) / 3600000 : Infinity;
-      const dead = hoursAgo > threshold;
+      const dead = !m || m.last < windowStart;
       const cat = CATEGORIES.find(c => c.id === o.cat_id);
       return { ...o, cat, dead, last: m?.last || null };
     });

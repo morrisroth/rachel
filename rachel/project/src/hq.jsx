@@ -1166,6 +1166,147 @@ function fmtNum(n) {
   return n.toLocaleString('he-IL');
 }
 
+function ProductPieChart({ products, loading }) {
+  const [hovered, setHovered] = useState(null);
+  const [tipPos, setTipPos]   = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
+
+  if (loading) return (
+    <div style={{padding:'24px 20px', color:'var(--ink-3)', font:'400 13px var(--font-ui)', display:'flex', gap:10, alignItems:'center'}}>
+      <div style={{width:14, height:14, border:'2px solid var(--line)', borderTopColor:'var(--ink)', borderRadius:'50%', animation:'spin .7s linear infinite'}}/>
+      טוען…
+    </div>
+  );
+
+  const filtered = (products || []).filter(p => p.current > 0);
+  if (filtered.length === 0) return (
+    <div style={{padding:'24px 20px', color:'var(--ink-3)', font:'400 13px var(--font-ui)'}}>אין נתוני מלאי עדיין.</div>
+  );
+
+  const total = filtered.reduce((s, p) => s + p.current, 0);
+
+  const PALETTE = [
+    '#1a6b52','#c0392b','#2980b9','#f39c12','#8e44ad',
+    '#16a085','#e67e22','#2c3e50','#27ae60','#d35400',
+    '#1a5276','#7f8c8d',
+  ];
+
+  let angle = -Math.PI / 2;
+  const slices = filtered.map((p, i) => {
+    const frac = p.current / total;
+    const sweep = frac * 2 * Math.PI;
+    const s = { ...p, frac, sa: angle, ea: angle + sweep, color: PALETTE[i % PALETTE.length] };
+    angle += sweep;
+    return s;
+  });
+
+  const cx = 110, cy = 110, R = 90, ri = 50;
+  function arc(sa, ea) {
+    const x1 = cx + R  * Math.cos(sa), y1 = cy + R  * Math.sin(sa);
+    const x2 = cx + R  * Math.cos(ea), y2 = cy + R  * Math.sin(ea);
+    const x3 = cx + ri * Math.cos(ea), y3 = cy + ri * Math.sin(ea);
+    const x4 = cx + ri * Math.cos(sa), y4 = cy + ri * Math.sin(sa);
+    const lg = ea - sa > Math.PI ? 1 : 0;
+    return `M${x1},${y1} A${R},${R} 0 ${lg},1 ${x2},${y2} L${x3},${y3} A${ri},${ri} 0 ${lg},0 ${x4},${y4}Z`;
+  }
+
+  function handleMouseMove(e, slice) {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setTipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setHovered(slice);
+  }
+
+  return (
+    <div style={{padding:'20px 24px', display:'flex', gap:32, alignItems:'flex-start', flexWrap:'wrap'}}>
+      <div ref={containerRef} style={{position:'relative', flexShrink:0}}>
+        <svg width={220} height={220} style={{display:'block', overflow:'visible'}}
+          onMouseLeave={() => setHovered(null)}>
+          {slices.map((s, i) => {
+            const isHov = hovered === s;
+            return (
+              <path key={i}
+                d={arc(s.sa, s.ea)}
+                fill={s.color}
+                stroke="#ece8df"
+                strokeWidth={2.5}
+                style={{
+                  cursor: 'pointer',
+                  transform: isHov ? 'scale(1.07)' : 'scale(1)',
+                  transformOrigin: `${cx}px ${cy}px`,
+                  transition: 'transform 0.15s ease',
+                  filter: isHov ? 'brightness(1.18)' : 'none',
+                }}
+                onMouseMove={e => handleMouseMove(e, s)}
+                onMouseEnter={() => setHovered(s)}
+              />
+            );
+          })}
+          {hovered ? (
+            <>
+              <text x={cx} y={cy - 7} textAnchor="middle" fontSize={12} fontWeight={700}
+                fontFamily="-apple-system,BlinkMacSystemFont,monospace" fill="#1c1a16">
+                {fmtNum(hovered.current)}
+              </text>
+              <text x={cx} y={cy + 10} textAnchor="middle" fontSize={10}
+                fontFamily="-apple-system,BlinkMacSystemFont,sans-serif" fill="#888">
+                {Math.round(hovered.frac * 100)}%
+              </text>
+            </>
+          ) : (
+            <>
+              <text x={cx} y={cy - 8} textAnchor="middle" fontSize={13} fontWeight={700}
+                fontFamily="-apple-system,BlinkMacSystemFont,monospace" fill="#1c1a16">{fmtNum(total)}</text>
+              <text x={cx} y={cy + 10} textAnchor="middle" fontSize={11}
+                fontFamily="-apple-system,BlinkMacSystemFont,sans-serif" fill="#888">סה״כ מלאי</text>
+            </>
+          )}
+        </svg>
+        {hovered && (
+          <div style={{
+            position: 'absolute',
+            left: tipPos.x + 14,
+            top: tipPos.y - 52,
+            background: '#1c1a16',
+            color: '#ece8df',
+            borderRadius: 7,
+            padding: '7px 12px',
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            zIndex: 20,
+            boxShadow: '0 4px 14px rgba(0,0,0,.28)',
+            borderInlineStart: `3px solid ${hovered.color}`,
+          }}>
+            <div style={{font:'600 13px var(--font-ui)'}}>{hovered.prod.name}</div>
+            <div style={{font:'500 11px var(--font-mono)', marginTop:3, color:'rgba(236,232,223,.7)'}}>
+              {hovered.current.toLocaleString('he-IL')} {hovered.prod.unit} · {Math.round(hovered.frac * 100)}%
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 28px', flex:1, minWidth:220, alignContent:'start', paddingTop:6}}>
+        {slices.map((s, i) => (
+          <div key={i}
+            style={{display:'flex', alignItems:'flex-start', gap:8, cursor:'pointer',
+              opacity: hovered && hovered !== s ? 0.38 : 1, transition:'opacity .15s'}}
+            onMouseEnter={() => setHovered(s)}
+            onMouseLeave={() => setHovered(null)}>
+            <div style={{width:10, height:10, borderRadius:2, background:s.color, flexShrink:0, marginTop:3,
+              outline: hovered === s ? `2px solid ${s.color}` : '2px solid transparent',
+              outlineOffset: 2, transition:'outline .15s'}}/>
+            <div style={{minWidth:0}}>
+              <div style={{font:'500 12.5px var(--font-ui)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{s.prod.name}</div>
+              <div style={{font:'500 10.5px var(--font-mono)', color:'var(--ink-3)', marginTop:1}}>
+                {fmtNum(s.current)} {s.prod.unit} · {Math.round(s.frac * 100)}%
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AnalyticsView({ monitor, orgs, mode }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1400,6 +1541,15 @@ function AnalyticsView({ monitor, orgs, mode }) {
             })}
           </div>
         )}
+      </div>
+
+      {/* Product stock pie chart */}
+      <div className="card" style={{overflow:'hidden'}}>
+        <div style={{padding:'16px 20px', borderBottom:'1px solid var(--line)'}}>
+          <div className="tag" style={{color:'var(--brand)', marginBottom:2}}>STOCK DISTRIBUTION · התפלגות מלאי לפי מוצר</div>
+          <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>חלוקת כמות המלאי הנוכחי בין המוצרים (מדורגים לפי נפח)</div>
+        </div>
+        <ProductPieChart products={topProducts} loading={loading}/>
       </div>
 
       {/* Org compliance grid */}

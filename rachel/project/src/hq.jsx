@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CATEGORIES, PRODUCTS, dbFetchLatestReportLines, dbFetchReportsForExport, dbSendNotification, dbFetchNotifications, dbInsertReport, dbFetchAppSettings, dbSaveAppSetting, dbSendEmail, dbUpdateUser } from './data.js';
-import { Icon, Crest, ModePill, PillToggle, Kpi, PageHeader, formatDate, relTime } from './components.jsx';
+import { Icon, Crest, ModePill, PillToggle, Kpi, PageHeader, formatDate, relTime, relTimeDays } from './components.jsx';
 import { OrgsView } from './orgs.jsx';
 
 export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor, onRefreshMonitor, onAddOrganization, onUpdateOrganization }) {
@@ -180,7 +180,7 @@ function MonitorView({ monitor, mode, orgs, onRefresh }) {
                 <td>
                   {m.last
                     ? <><span className="num" style={{color:'var(--ink)'}}>{formatDate(m.last)}</span>
-                        <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{relTime(m.last)}</div></>
+                        <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{mode === 'emergency' ? relTime(m.last) : relTimeDays(m.last)}</div></>
                     : <span style={{color:'var(--ink-3)', font:'400 13px var(--font-ui)'}}>לא דיווח מעולם</span>
                   }
                 </td>
@@ -1137,6 +1137,14 @@ function LiveClock() {
   );
 }
 
+function fmtNum(n) {
+  if (n >= 1e12) return `${(n / 1e12).toFixed(1)}T`;
+  if (n >= 1e9)  return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6)  return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3)  return `${(n / 1e3).toFixed(0)}K`;
+  return n.toLocaleString('he-IL');
+}
+
 function AnalyticsView({ monitor, orgs, mode }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1278,7 +1286,7 @@ function AnalyticsView({ monitor, orgs, mode }) {
         </div>
 
         {/* Ministry inventory bars */}
-        <div className="card" style={{padding:22, display:'flex', flexDirection:'column', gap:20}}>
+        <div className="card" style={{padding:22, display:'flex', flexDirection:'column', gap:20, overflow:'hidden'}}>
           <div>
             <div className="tag" style={{color:'var(--brand)', marginBottom:4}}>מלאי לפי משרד</div>
             <div style={{font:'400 12px var(--font-ui)', color:'var(--ink-3)'}}>סכום מלאי נוכחי מכלל הדיווחים</div>
@@ -1295,11 +1303,11 @@ function AnalyticsView({ monitor, orgs, mode }) {
             const inPct = Math.round(incoming / maxCatStock * 100);
             return (
               <div key={cat.id}>
-                <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:7}}>
-                  <span style={{font:'600 13px var(--font-ui)'}}>{cat.name}</span>
-                  <span style={{font:'500 11px var(--font-mono)', color:'var(--ink-3)'}}>
-                    {current.toLocaleString('he-IL')}
-                    {incoming > 0 && <span style={{color:'var(--brand-2)'}}> +{incoming.toLocaleString('he-IL')} בדרך</span>}
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:7, gap:8}}>
+                  <span style={{font:'600 13px var(--font-ui)', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{cat.name}</span>
+                  <span style={{font:'500 11px var(--font-mono)', color:'var(--ink-3)', whiteSpace:'nowrap', flexShrink:0}}>
+                    {fmtNum(current)}
+                    {incoming > 0 && <span style={{color:'var(--brand-2)'}}> +{fmtNum(incoming)} בדרך</span>}
                   </span>
                 </div>
                 <div style={{height:10, background:'var(--paper-2)', borderRadius:3, border:'1px solid var(--line)', position:'relative', overflow:'hidden'}}>
@@ -1347,15 +1355,15 @@ function AnalyticsView({ monitor, orgs, mode }) {
             {topProducts.map(({ prod, cat, current, incoming, orgCount }, i) => {
               const barPct = Math.round(current / maxStock * 100);
               return (
-                <div key={prod.id} style={{display:'grid', gridTemplateColumns:'28px 1fr 90px', gap:14, alignItems:'center'}}>
+                <div key={prod.id} style={{display:'grid', gridTemplateColumns:'28px 1fr auto', gap:14, alignItems:'center'}}>
                   <span style={{font:'600 11px var(--font-mono)', color:'var(--ink-4)', letterSpacing:'.06em', textAlign:'end'}}>
                     {String(i+1).padStart(2,'0')}
                   </span>
-                  <div>
+                  <div style={{minWidth:0}}>
                     <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:5}}>
-                      <span style={{font:'600 13.5px var(--font-ui)'}}>{prod.name}</span>
-                      {cat && <span className="chip" style={{fontSize:9.5, padding:'1px 5px'}}>{cat.short}</span>}
-                      <span style={{font:'500 10.5px var(--font-mono)', color:'var(--ink-3)', marginInlineStart:'auto'}}>
+                      <span style={{font:'600 13.5px var(--font-ui)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{prod.name}</span>
+                      {cat && <span className="chip" style={{fontSize:9.5, padding:'1px 5px', flexShrink:0}}>{cat.short}</span>}
+                      <span style={{font:'500 10.5px var(--font-mono)', color:'var(--ink-3)', marginInlineStart:'auto', whiteSpace:'nowrap', flexShrink:0}}>
                         {orgCount} ארגונים · {prod.unit}
                       </span>
                     </div>
@@ -1363,9 +1371,9 @@ function AnalyticsView({ monitor, orgs, mode }) {
                       <div style={{width:`${barPct}%`, height:'100%', background:'var(--brand)', borderRadius:3, transition:'width .6s ease'}}/>
                     </div>
                   </div>
-                  <div style={{textAlign:'end'}}>
-                    <div style={{font:'700 15px var(--font-mono)', letterSpacing:'-.01em'}}>{current.toLocaleString('he-IL')}</div>
-                    {incoming > 0 && <div style={{font:'500 10px var(--font-mono)', color:'var(--brand-2)', marginTop:1}}>+{incoming.toLocaleString('he-IL')} בדרך</div>}
+                  <div style={{textAlign:'end', whiteSpace:'nowrap'}}>
+                    <div style={{font:'700 15px var(--font-mono)', letterSpacing:'-.01em'}}>{fmtNum(current)}</div>
+                    {incoming > 0 && <div style={{font:'500 10px var(--font-mono)', color:'var(--brand-2)', marginTop:1}}>+{fmtNum(incoming)} בדרך</div>}
                   </div>
                 </div>
               );

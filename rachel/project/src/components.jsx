@@ -75,6 +75,14 @@ export function relTime(ms) {
   return `לפני ${d} ימים`;
 }
 
+export function relTimeDays(ms) {
+  const diff = Date.now() - ms;
+  const d = Math.floor(diff / 86400000);
+  if (d < 1) return 'היום';
+  if (d === 1) return 'לפני יום';
+  return `לפני ${d} ימים`;
+}
+
 export function reportIsWithin24h(ms) {
   return Date.now() - ms < 24 * 3600 * 1000;
 }

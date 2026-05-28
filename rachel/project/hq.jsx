@@ -162,7 +162,7 @@ function MonitorView({ monitor, mode, orgs }) {
                 <td style={{color:'var(--ink-2)'}}>{m.user}</td>
                 <td>
                   <span className="num" style={{color:'var(--ink)'}}>{formatDate(m.last)}</span>
-                  <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{relTime(m.last)}</div>
+                  <div style={{font:'400 11px var(--font-ui)', color:'var(--ink-3)'}}>{mode === 'emergency' ? relTime(m.last) : relTimeDays(m.last)}</div>
                 </td>
                 <td>
                   {m.dead

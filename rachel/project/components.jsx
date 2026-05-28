@@ -80,6 +80,14 @@ function relTime(ms) {
   return `לפני ${d} ימים`;
 }
 
+function relTimeDays(ms) {
+  const diff = Date.now() - ms;
+  const d = Math.floor(diff / 86400000);
+  if (d < 1) return 'היום';
+  if (d === 1) return 'לפני יום';
+  return `לפני ${d} ימים`;
+}
+
 function reportIsWithin24h(ms) {
   return Date.now() - ms < 24 * 3600 * 1000;
 }
@@ -267,5 +275,5 @@ function TopBar({ user, onLogout, right }) {
 
 Object.assign(window, {
   Icon, Crest, StatusBlock, ProductCombobox, PillToggle, TopBar,
-  formatDate, relTime, reportIsWithin24h,
+  formatDate, relTime, relTimeDays, reportIsWithin24h,
 });

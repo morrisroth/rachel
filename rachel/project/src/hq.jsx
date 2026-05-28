@@ -144,7 +144,7 @@ function MonitorView({ monitor, mode, orgs, onRefresh }) {
         <Kpi label="ארגונים מחויבי דיווח" value={total}/>
         <Kpi label="דיווחו בחלון הנדרש"  value={reported} accent="ok"/>
         <Kpi label="שטחים מתים"           value={deadCount} accent={deadCount > 0 ? 'bad' : 'ok'}/>
-        <Kpi label="חלון דיווח נוכחי"     value={mode === 'emergency' ? '24 ש׳' : '168 ש׳'}/>
+        <Kpi label="חלון דיווח נוכחי"     value={mode === 'emergency' ? '24 ש׳' : '7 ימים'}/>
       </div>
 
       <div className="card" style={{overflow:'hidden'}}>

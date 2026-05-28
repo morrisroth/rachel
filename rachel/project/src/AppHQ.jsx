@@ -133,62 +133,92 @@ function HQLogin({ users, onLogin }) {
   const hqUsers = users.filter(u => u.role === 'HQ_USER' && u.id <= 22);
 
   return (
-    <div style={{minHeight:'100dvh', display:'flex', alignItems:'stretch', background:'var(--paper)'}}>
+    <div style={{minHeight:'100dvh', display:'flex', alignItems:'stretch'}}>
 
-      {/* ── Brand panel (right in RTL) ── */}
-      <div style={{flex:'1 1 0', padding:'48px 56px', display:'flex', flexDirection:'column', justifyContent:'space-between', borderInlineEnd:'1px solid var(--ink)', position:'relative', overflow:'hidden'}}>
-        {/* Subtle grid wash */}
-        <div style={{position:'absolute', inset:0, pointerEvents:'none', opacity:.4,
-          backgroundImage:'linear-gradient(var(--hairline) 1px, transparent 1px), linear-gradient(90deg, var(--hairline) 1px, transparent 1px)',
+      {/* ── Brand panel ── */}
+      <div style={{flex:'1 1 0', background:'#0f0e0c', position:'relative', overflow:'hidden',
+                   display:'flex', flexDirection:'column', justifyContent:'space-between', padding:'48px 60px'}}>
+        {/* Grid overlay */}
+        <div style={{position:'absolute', inset:0, pointerEvents:'none',
+          backgroundImage:'linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px)',
           backgroundSize:'48px 48px'}}/>
+        {/* Glow */}
+        <div style={{position:'absolute', top:'-20%', insetInlineEnd:'-10%', width:500, height:500,
+          borderRadius:'50%', background:'radial-gradient(circle, rgba(74,120,80,.18) 0%, transparent 70%)', pointerEvents:'none'}}/>
 
+        {/* Top bar */}
         <div style={{position:'relative', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div style={{display:'flex', alignItems:'center', gap:14}}>
-            <img src="/mod-logo.jpg" alt="MOD Logo" style={{width:54, height:54, borderRadius:'50%', objectFit:'cover', border:'2px solid var(--line)', flexShrink:0}}/>
-            <Crest subtitle="חמ״ל מרכזי — מרכז שליטה ארצי"/>
+            <img src="/mod-logo.jpg" alt="" style={{width:48, height:48, borderRadius:'50%', objectFit:'cover',
+              border:'1px solid rgba(255,255,255,.15)', flexShrink:0}}/>
+            <div>
+              <div style={{font:'700 14px var(--font-ui)', color:'#fff', letterSpacing:'-.01em'}}>מערכת רחל</div>
+              <div style={{font:'500 10px var(--font-mono)', color:'rgba(255,255,255,.35)', letterSpacing:'.12em', textTransform:'uppercase', marginTop:2}}>חמ״ל מרכזי · מרכז שליטה ארצי</div>
+            </div>
           </div>
-          <span style={{display:'inline-flex', alignItems:'center', gap:6, padding:'4px 8px', border:'1px solid var(--ink)', font:'700 9.5px var(--font-mono)', letterSpacing:'.14em', textTransform:'uppercase', borderRadius:2}}>
+          <div style={{display:'inline-flex', alignItems:'center', gap:6, padding:'5px 11px',
+            border:'1px solid rgba(255,255,255,.12)', borderRadius:3,
+            font:'700 9px var(--font-mono)', letterSpacing:'.14em', color:'rgba(255,255,255,.4)', textTransform:'uppercase'}}>
+            <div style={{width:5, height:5, borderRadius:'50%', background:'#4a7850'}}/>
             אזור מאובטח
-          </span>
+          </div>
         </div>
 
+        {/* Hero text */}
         <div style={{position:'relative'}}>
-          <div className="tag" style={{color:'var(--brand)'}}>00 · CONTROL ROOM</div>
-          <h1 style={{margin:'14px 0 14px', font:'800 58px/1 var(--font-ui)', letterSpacing:'-.035em'}}>
+          <div style={{display:'inline-block', padding:'4px 10px', marginBottom:22,
+            background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', borderRadius:3,
+            font:'700 10px var(--font-mono)', letterSpacing:'.14em', color:'rgba(255,255,255,.45)', textTransform:'uppercase'}}>
+            00 · CONTROL ROOM
+          </div>
+          <h1 style={{margin:'0 0 20px', font:'800 66px/1 var(--font-ui)', letterSpacing:'-.04em', color:'#fff'}}>
             תמונת מצב<br/>
-            <span style={{color:'var(--brand)'}}>לאומית</span>, בזמן אמת.
+            <span style={{color:'var(--brand)'}}>לאומית</span>,<br/>
+            בזמן אמת.
           </h1>
-          <p style={{margin:'0 0 28px', font:'400 15px/1.55 var(--font-ui)', color:'var(--ink-2)', maxWidth:460}}>
-            ניטור רציף של ארגונים, ארבעה משרדי ממשלה, ושרשרת אספקה לאומית. גישה לאנשי מטה מורשים.
+          <p style={{margin:'0 0 32px', font:'400 15px/1.65 var(--font-ui)', color:'rgba(255,255,255,.45)', maxWidth:440}}>
+            ניטור רציף של ארגונים, ארבעה משרדי ממשלה, ושרשרת אספקה לאומית.<br/>גישה לאנשי מטה מורשים בלבד.
           </p>
-          <hr style={{border:0, height:1, background:'var(--ink)', maxWidth:460, marginBottom:24}}/>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 240px))', gap:'14px 24px', maxWidth:500}}>
+          <div style={{width:36, height:2, background:'rgba(255,255,255,.15)', borderRadius:1, marginBottom:28}}/>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, maxWidth:480}}>
             {[
-              ['ניטור', 'תמונת מצב ארצית עם רענון אוטומטי'],
-              ['ניהול', 'תדירות הדיווח ומצב לאומי'],
+              ['ניטור', 'תמונת מצב ארצית, רענון אוטומטי'],
+              ['ניהול', 'תדירות דיווח ומצב לאומי'],
               ['ייצוא', 'אקסל ל-4 משרדי ממשלה'],
               ['ארגונים', 'ניהול ארגונים ונציגי שטח'],
-            ].map(([t,d]) => (
-              <div key={t}>
-                <div style={{font:'700 13px var(--font-ui)', color:'var(--ink)'}}>{t}</div>
-                <div style={{font:'400 12.5px/1.4 var(--font-ui)', color:'var(--ink-3)', marginTop:2}}>{d}</div>
+            ].map(([title, desc]) => (
+              <div key={title} style={{padding:'14px 16px',
+                background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.08)', borderRadius:4}}>
+                <div style={{font:'700 13px var(--font-ui)', color:'#fff', marginBottom:4}}>{title}</div>
+                <div style={{font:'400 12px/1.4 var(--font-ui)', color:'rgba(255,255,255,.38)'}}>{desc}</div>
               </div>
             ))}
           </div>
         </div>
 
-        <div style={{position:'relative', display:'flex', justifyContent:'space-between', alignItems:'baseline', font:'500 11px var(--font-mono)', letterSpacing:'.1em', color:'var(--ink-3)', textTransform:'uppercase'}}>
+        {/* Footer */}
+        <div style={{position:'relative', display:'flex', justifyContent:'space-between', alignItems:'center',
+          font:'500 10px var(--font-mono)', letterSpacing:'.1em', color:'rgba(255,255,255,.22)', textTransform:'uppercase'}}>
           <span>מערכת רחל · MVP</span>
-          <a href="/" style={{color:'var(--brand)', textDecoration:'none'}}>FIELD_USER → /field</a>
+          <a href="/" style={{color:'rgba(255,255,255,.3)', textDecoration:'none', letterSpacing:'.08em'}}>FIELD_USER → /field</a>
         </div>
       </div>
 
-      {/* ── Form panel (left in RTL) ── */}
-      <div style={{flex:'0 0 440px', padding:'48px 44px', display:'flex', flexDirection:'column', justifyContent:'center', background:'var(--surface)', borderInlineStart:'1px solid var(--line)'}}>
-        <div className="tag" style={{color:'var(--brand)'}}>SIGN IN</div>
-        <h2 style={{margin:'10px 0 28px', font:'700 28px var(--font-ui)', letterSpacing:'-.02em'}}>כניסה לחמ״ל</h2>
+      {/* ── Form panel ── */}
+      <div style={{flex:'0 0 420px', display:'flex', flexDirection:'column', justifyContent:'center',
+                   padding:'52px 48px', background:'var(--paper)', borderInlineStart:'1px solid var(--line)'}}>
 
-        <form onSubmit={submit} style={{display:'flex', flexDirection:'column', gap:16}}>
+        <div style={{marginBottom:32}}>
+          <div style={{display:'inline-flex', alignItems:'center', gap:6, padding:'4px 10px', marginBottom:18,
+            border:'1px solid var(--line)', borderRadius:3,
+            font:'700 9px var(--font-mono)', letterSpacing:'.14em', color:'var(--ink-3)', textTransform:'uppercase'}}>
+            SIGN IN
+          </div>
+          <h2 style={{margin:'0 0 8px', font:'700 32px/1.1 var(--font-ui)', letterSpacing:'-.025em'}}>כניסה לחמ״ל</h2>
+          <p style={{margin:0, font:'400 14px/1.5 var(--font-ui)', color:'var(--ink-3)'}}>הזן פרטי גישה מורשים להמשך</p>
+        </div>
+
+        <form onSubmit={submit} style={{display:'flex', flexDirection:'column', gap:14}}>
           <div>
             <label className="label">מספר תעודת זהות</label>
             <div style={{position:'relative'}}>
@@ -208,7 +238,8 @@ function HQLogin({ users, onLogin }) {
             </div>
           </div>
           {err && (
-            <div style={{font:'500 13px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:7, padding:'10px 13px', background:'var(--bad-bg)', border:'1px solid var(--bad-line)', borderRadius:'var(--r-1)'}}>
+            <div style={{font:'500 13px var(--font-ui)', color:'var(--bad)', display:'flex', alignItems:'center', gap:7,
+              padding:'10px 13px', background:'var(--bad-bg)', border:'1px solid var(--bad-line)', borderRadius:'var(--r-1)'}}>
               <Icon name="alert" size={13}/> {err}
             </div>
           )}
@@ -219,10 +250,15 @@ function HQLogin({ users, onLogin }) {
           </button>
         </form>
 
-        <hr style={{border:0, height:1, background:'var(--line)', margin:'24px 0 16px'}}/>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', font:'500 11px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.08em', textTransform:'uppercase'}}>
-          <span>SECURE · END-TO-END</span>
-          <span style={{display:'inline-flex', alignItems:'center', gap:6}}><Icon name="shield" size={12}/> מוצפן</span>
+        <div style={{marginTop:28, paddingTop:20, borderTop:'1px solid var(--line)',
+          display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <div style={{display:'flex', alignItems:'center', gap:7}}>
+            <div style={{width:6, height:6, borderRadius:'50%', background:'var(--ok)', boxShadow:'0 0 0 2px oklch(88% 0.08 155/.4)'}}/>
+            <span style={{font:'500 10px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.1em', textTransform:'uppercase'}}>SECURE</span>
+          </div>
+          <span style={{display:'inline-flex', alignItems:'center', gap:5, font:'500 10px var(--font-mono)', color:'var(--ink-3)', letterSpacing:'.08em', textTransform:'uppercase'}}>
+            <Icon name="shield" size={11}/> END-TO-END
+          </span>
         </div>
       </div>
     </div>

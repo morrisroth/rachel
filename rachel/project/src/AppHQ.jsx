@@ -143,7 +143,10 @@ function HQLogin({ users, onLogin }) {
           backgroundSize:'48px 48px'}}/>
 
         <div style={{position:'relative', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-          <Crest subtitle="חמ״ל מרכזי — מרכז שליטה ארצי"/>
+          <div style={{display:'flex', alignItems:'center', gap:14}}>
+            <img src="/mod-logo.jpg" alt="MOD Logo" style={{width:54, height:54, borderRadius:'50%', objectFit:'cover', border:'2px solid var(--line)', flexShrink:0}}/>
+            <Crest subtitle="חמ״ל מרכזי — מרכז שליטה ארצי"/>
+          </div>
           <span style={{display:'inline-flex', alignItems:'center', gap:6, padding:'4px 8px', border:'1px solid var(--ink)', font:'700 9.5px var(--font-mono)', letterSpacing:'.14em', textTransform:'uppercase', borderRadius:2}}>
             אזור מאובטח
           </span>

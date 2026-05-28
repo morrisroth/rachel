@@ -34,6 +34,7 @@ export function HQShell({ user, onLogout, mode, onSetMode, orgs, users, monitor,
       <div className="topbar" style={{padding:'0 20px', justifyContent:'space-between'}}>
         {/* Left: meta */}
         <div style={{display:'flex', alignItems:'center', gap:12, flexShrink:0}}>
+          <img src="/mod-logo.jpg" alt="MOD Logo" style={{width:32, height:32, borderRadius:'50%', objectFit:'cover', border:'1px solid var(--line)', flexShrink:0}}/>
           <Crest variant="brand" subtitle="חמ״ל מרכזי"/>
           <div style={{width:1, height:18, background:'var(--line-2)'}}/>
           <button className="btn btn--ghost btn--sm" onClick={onRefreshMonitor} style={{gap:5}}>

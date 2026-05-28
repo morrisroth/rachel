@@ -256,7 +256,10 @@ function FieldLogin({ users, onLogin }) {
     return (
       <div style={{minHeight:'100dvh', display:'flex', flexDirection:'column', background:'var(--paper)', backgroundImage:'linear-gradient(var(--hairline) 1px, transparent 1px), linear-gradient(90deg, var(--hairline) 1px, transparent 1px)', backgroundSize:'48px 48px'}}>
         <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 32px', height:56, borderBottom:'1px solid var(--ink)', background:'var(--paper)', flexShrink:0}}>
-          <Crest subtitle="דיווח שטח"/>
+          <div style={{display:'flex', alignItems:'center', gap:12}}>
+            <img src="/mod-logo.jpg" alt="MOD Logo" style={{width:36, height:36, borderRadius:'50%', objectFit:'cover', border:'1px solid var(--line)', flexShrink:0}}/>
+            <Crest subtitle="דיווח שטח"/>
+          </div>
           <div style={{display:'flex', alignItems:'center', gap:12}}>
             <ModePill mode="emergency"/>
             <a href="/hq.html" style={{font:'500 11px var(--font-mono)', color:'var(--ink-3)', textDecoration:'none', letterSpacing:'.08em', textTransform:'uppercase'}}>HQ →</a>

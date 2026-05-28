@@ -657,7 +657,7 @@ function NotifyView({ user, orgs, notifications, onSend }) {
   }
 
   return (
-    <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:780}}>
+    <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:780, margin:'0 auto', width:'100%'}}>
       <PageHeader tag="04 · NOTIFY" title="שליחת התראות לשטח" sub="הודעות יוצגו לנציגי השטח בעת כניסה לדיווח"/>
 
       <div className="card" style={{padding:24, display:'flex', flexDirection:'column', gap:16}}>
@@ -847,7 +847,7 @@ function EmailView({ user, orgs, users }) {
   const missingEmails = targetOrgs.filter(o => !localEmails[o.id]).length;
 
   return (
-    <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:900}}>
+    <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:900, margin:'0 auto', width:'100%'}}>
       <PageHeader tag="05 · EMAIL" title="שליחת מיילים לארגונים" sub={`נשלח מ־morisiusmoris@gmail.com · ניתן לערוך תבנית ולשלוח לכלל הארגונים או לחלקם`}/>
 
       {/* Recipients */}
@@ -1061,7 +1061,7 @@ function ModeView({ mode, onSetMode, users }) {
   }
 
   return (
-    <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:780}}>
+    <div style={{display:'flex', flexDirection:'column', gap:22, maxWidth:780, margin:'0 auto', width:'100%'}}>
       <PageHeader tag="06 · MODE" title="מצב לאומי והתראות" sub="בורר זה משפיע על תדירות חובת הדיווח של כלל הארגונים במשק."/>
       <div className="card" style={{padding:0, overflow:'hidden'}}>
         {[

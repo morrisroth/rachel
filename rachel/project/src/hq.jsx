@@ -1138,10 +1138,15 @@ function LiveClock() {
 }
 
 function fmtNum(n) {
-  if (n >= 1e12) return `${(n / 1e12).toFixed(1)}T`;
-  if (n >= 1e9)  return `${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6)  return `${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3)  return `${(n / 1e3).toFixed(0)}K`;
+  if (!isFinite(n) || n <= 0) return '0';
+  const tiers = [[1e15,'P'],[1e12,'T'],[1e9,'B'],[1e6,'M'],[1e3,'K']];
+  for (const [base, suffix] of tiers) {
+    if (n >= base) {
+      const v = n / base;
+      if (v >= 1e15) return n.toExponential(2);  // still too large even for this tier
+      return (v >= 100 ? Math.round(v) : parseFloat(v.toFixed(1))) + suffix;
+    }
+  }
   return n.toLocaleString('he-IL');
 }
 
